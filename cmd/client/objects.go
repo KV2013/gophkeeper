@@ -35,12 +35,12 @@ func cmdAdd(serverURL string) {
 		fatal("%v", err)
 	}
 
-	master, err := promptSecret("мастер-пароль: ")
+	master, err := a.masterKey()
 	if err != nil {
-		fatal("не удалось прочитать мастер-пароль: %v", err)
+		fatal("не удалось получить мастер-ключ: %v", err)
 	}
 
-	ciphertext, err := encryptPayload(master, salt, data)
+	ciphertext, err := encryptPayload(master, data)
 	if err != nil {
 		fatal("не удалось зашифровать данные: %v", err)
 	}
@@ -95,22 +95,18 @@ func cmdGet(serverURL string, args []string) {
 	if err != nil {
 		fatal("%v", err)
 	}
-	salt, err := a.loadSalt()
-	if err != nil {
-		fatal("%v", err)
-	}
 
 	obj, err := a.sync.GetObject(ctx(), token, id)
 	if err != nil {
 		fatal("не удалось получить объект: %v", err)
 	}
 
-	master, err := promptSecret("мастер-пароль: ")
+	master, err := a.masterKey()
 	if err != nil {
-		fatal("не удалось прочитать мастер-пароль: %v", err)
+		fatal("не удалось получить мастер-ключ: %v", err)
 	}
 
-	plaintext, err := decryptPayload(master, salt, obj.Ciphertext)
+	plaintext, err := decryptPayload(master, obj.Ciphertext)
 	if err != nil {
 		fatal("не удалось расшифровать данные: %v", err)
 	}
@@ -161,12 +157,12 @@ func cmdEdit(serverURL string, args []string) {
 		fatal("%v", err)
 	}
 
-	master, err := promptSecret("мастер-пароль: ")
+	master, err := a.masterKey()
 	if err != nil {
-		fatal("не удалось прочитать мастер-пароль: %v", err)
+		fatal("не удалось получить мастер-ключ: %v", err)
 	}
 
-	ciphertext, err := encryptPayload(master, salt, data)
+	ciphertext, err := encryptPayload(master, data)
 	if err != nil {
 		fatal("не удалось зашифровать данные: %v", err)
 	}

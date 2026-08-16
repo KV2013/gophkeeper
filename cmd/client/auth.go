@@ -38,7 +38,7 @@ func cmdRegister(serverURL string, args []string) {
 	if err != nil {
 		fatal("регистрация не удалась: %v", err)
 	}
-	if err := a.saveAuth(resp.Token, resp.Salt); err != nil {
+	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func cmdLogin(serverURL string, args []string) {
 	if err != nil {
 		fatal("вход не удался: %v", err)
 	}
-	if err := a.saveAuth(resp.Token, resp.Salt); err != nil {
+	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
 	}
 

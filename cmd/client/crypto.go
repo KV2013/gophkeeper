@@ -9,12 +9,8 @@ import (
 	"github.com/victor/gophkeeper/internal/model"
 )
 
-// encryptPayload шифрует открытый текст мастер-ключом, выведенным из пароля.
-func encryptPayload(password string, salt []byte, data any) ([]byte, error) {
-	key, err := crypto.DeriveKey(password, salt)
-	if err != nil {
-		return nil, err
-	}
+// encryptPayload шифрует открытый текст производным ключом.
+func encryptPayload(key crypto.Key, data any) ([]byte, error) {
 	plaintext, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -22,12 +18,8 @@ func encryptPayload(password string, salt []byte, data any) ([]byte, error) {
 	return crypto.Encrypt(key, plaintext)
 }
 
-// decryptPayload расшифровывает шифротекст мастер-ключом.
-func decryptPayload(password string, salt, ciphertext []byte) ([]byte, error) {
-	key, err := crypto.DeriveKey(password, salt)
-	if err != nil {
-		return nil, err
-	}
+// decryptPayload расшифровывает шифротекст производным ключом.
+func decryptPayload(key crypto.Key, ciphertext []byte) ([]byte, error) {
 	return crypto.Decrypt(key, ciphertext)
 }
 

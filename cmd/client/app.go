@@ -17,6 +17,7 @@ import (
 	clientpath "github.com/victor/gophkeeper/internal/client/path"
 	"github.com/victor/gophkeeper/internal/client/repository"
 	"github.com/victor/gophkeeper/internal/client/sync"
+	"github.com/victor/gophkeeper/internal/crypto"
 )
 
 // keyringService — имя сервиса в системном keyring.
@@ -88,12 +89,19 @@ func (a *app) requireToken() (string, error) {
 	return token, nil
 }
 
-// saveAuth сохраняет токен и соль в keyring.
-func (a *app) saveAuth(token string, salt []byte) error {
+// saveAuth сохраняет токен, соль и производный ключ шифрования в keyring.
+func (a *app) saveAuth(token string, salt []byte, masterPassword string) error {
 	if err := a.keyring.Set(clientkeyring.KeyToken, token); err != nil {
 		return err
 	}
-	return a.keyring.Set(clientkeyring.KeySalt, hex.EncodeToString(salt))
+	if err := a.keyring.Set(clientkeyring.KeySalt, hex.EncodeToString(salt)); err != nil {
+		return err
+	}
+	key, err := crypto.DeriveKey(masterPassword, salt)
+	if err != nil {
+		return err
+	}
+	return a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:]))
 }
 
 // loadSalt читает соль KDF из keyring.
@@ -105,12 +113,52 @@ func (a *app) loadSalt() ([]byte, error) {
 	return hex.DecodeString(s)
 }
 
-// clearAuth удаляет сохранённые токен и соль из keyring (выход из сессии).
+// masterKey возвращает производный ключ шифрования из keyring; при отсутствии
+// выводит его заново из мастер-пароля, запрошенного у пользователя.
+func (a *app) masterKey() (crypto.Key, error) {
+	if v, err := a.keyring.Get(clientkeyring.KeyMasterKey); err == nil && v != "" {
+		raw, err := hex.DecodeString(v)
+		if err != nil {
+			return crypto.Key{}, err
+		}
+		if len(raw) != crypto.KeySize {
+			return crypto.Key{}, errors.New("неверный размер сохранённого ключа")
+		}
+		var key crypto.Key
+		copy(key[:], raw)
+		return key, nil
+	}
+
+	salt, err := a.loadSalt()
+	if err != nil {
+		return crypto.Key{}, err
+	}
+	password, err := promptSecret("мастер-пароль: ")
+	if err != nil {
+		return crypto.Key{}, err
+	}
+	if password == "" {
+		return crypto.Key{}, errors.New("мастер-пароль не может быть пустым")
+	}
+	key, err := crypto.DeriveKey(password, salt)
+	if err != nil {
+		return crypto.Key{}, err
+	}
+	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
+		return crypto.Key{}, err
+	}
+	return key, nil
+}
+
+// clearAuth удаляет сохранённые токен, соль и ключ (выход из сессии).
 func (a *app) clearAuth() error {
 	if err := a.keyring.Delete(clientkeyring.KeyToken); err != nil {
 		return err
 	}
-	return a.keyring.Delete(clientkeyring.KeySalt)
+	if err := a.keyring.Delete(clientkeyring.KeySalt); err != nil {
+		return err
+	}
+	return a.keyring.Delete(clientkeyring.KeyMasterKey)
 }
 
 // ctx возвращает фоновый контекст для запросов.

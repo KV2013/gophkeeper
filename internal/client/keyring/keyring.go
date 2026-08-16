@@ -17,6 +17,8 @@ const (
 	KeyToken = "token"
 	// KeySalt — соль KDF (hex).
 	KeySalt = "salt"
+	// KeyMasterKey — производный ключ шифрования (hex).
+	KeyMasterKey = "master_key"
 )
 
 // ErrNotFound — секрет с заданным ключом не найден.
