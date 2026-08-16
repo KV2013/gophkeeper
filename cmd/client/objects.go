@@ -62,6 +62,10 @@ func cmdList(serverURL string) {
 	a := mustApp(serverURL)
 	defer a.close()
 
+	if _, err := a.requireToken(); err != nil {
+		fatal("%v", err)
+	}
+
 	objects, err := a.store.ListObjects(ctx())
 	if err != nil {
 		fatal("не удалось прочитать кэш: %v", err)

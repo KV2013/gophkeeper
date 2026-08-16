@@ -105,6 +105,14 @@ func (a *app) loadSalt() ([]byte, error) {
 	return hex.DecodeString(s)
 }
 
+// clearAuth удаляет сохранённые токен и соль из keyring (выход из сессии).
+func (a *app) clearAuth() error {
+	if err := a.keyring.Delete(clientkeyring.KeyToken); err != nil {
+		return err
+	}
+	return a.keyring.Delete(clientkeyring.KeySalt)
+}
+
 // ctx возвращает фоновый контекст для запросов.
 func ctx() context.Context {
 	return context.Background()

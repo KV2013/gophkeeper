@@ -84,3 +84,18 @@ func cmdLogin(serverURL string, args []string) {
 		fmt.Println("вход выполнен, данные синхронизированы")
 	}
 }
+
+// cmdLogout обрабатывает команду logout: удаляет JWT-токен и соль из keyring.
+func cmdLogout(serverURL string) {
+	a := mustApp(serverURL)
+	defer a.close()
+
+	if _, err := a.requireToken(); err != nil {
+		fmt.Println("нет активной сессии")
+		return
+	}
+	if err := a.clearAuth(); err != nil {
+		fatal("не удалось выполнить выход: %v", err)
+	}
+	fmt.Println("выход выполнен")
+}

@@ -41,6 +41,8 @@ func main() {
 		cmdRegister(*server, args[1:])
 	case "login":
 		cmdLogin(*server, args[1:])
+	case "logout":
+		cmdLogout(*server)
 	case "add":
 		cmdAdd(*server)
 	case "list":
@@ -75,6 +77,7 @@ func usage() {
 Команды:
   register    зарегистрировать пользователя
   login       войти и синхронизировать данные
+  logout      завершить сессию (удалить токен)
   add         добавить объект
   list        показать список объектов (из локального кэша)
   get <id>    показать объект
