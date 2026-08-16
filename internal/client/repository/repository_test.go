@@ -34,6 +34,70 @@ func testObject(id, name string) *model.Object {
 	}
 }
 
+func TestConfig(t *testing.T) {
+	tests := map[string]struct {
+		fn      func(s *Repository) error
+		wantErr error
+	}{
+		"get отсутствующего ключа": {
+			fn: func(s *Repository) error {
+				_, err := s.GetConfig(context.Background(), "missing")
+				return err
+			},
+			wantErr: ErrNotFound,
+		},
+		"set и get возвращают значение": {
+			fn: func(s *Repository) error {
+				if err := s.SetConfig(context.Background(), "k", "v"); err != nil {
+					return err
+				}
+				v, err := s.GetConfig(context.Background(), "k")
+				if err != nil {
+					return err
+				}
+				if v != "v" {
+					return fmt.Errorf("got %q, want v", v)
+				}
+				return nil
+			},
+		},
+		"set обновляет существующее значение": {
+			fn: func(s *Repository) error {
+				if err := s.SetConfig(context.Background(), "k", "v1"); err != nil {
+					return err
+				}
+				if err := s.SetConfig(context.Background(), "k", "v2"); err != nil {
+					return err
+				}
+				v, err := s.GetConfig(context.Background(), "k")
+				if err != nil {
+					return err
+				}
+				if v != "v2" {
+					return fmt.Errorf("got %q, want v2", v)
+				}
+				return nil
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			s := newTestRepository(t)
+			err := tc.fn(s)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("ожидалась ошибка %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("неожиданная ошибка: %v", err)
+			}
+		})
+	}
+}
+
 func TestStorage(t *testing.T) {
 	tests := map[string]struct {
 		fn      func(s *Repository) error

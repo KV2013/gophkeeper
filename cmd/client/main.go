@@ -43,6 +43,12 @@ func main() {
 		cmdLogin(*server, args[1:])
 	case "logout":
 		cmdLogout(*server)
+	case "daemon":
+		cmdDaemon(*server)
+	case "config-set":
+		cmdConfigSet(*server, args[1:])
+	case "config-get":
+		cmdConfigGet(*server, args[1:])
 	case "add":
 		cmdAdd(*server)
 	case "list":
@@ -78,6 +84,9 @@ func usage() {
   register    зарегистрировать пользователя
   login       войти и синхронизировать данные
   logout      завершить сессию (удалить токен)
+  daemon      запустить фоновый процесс очистки протухших секретов
+  config-set <key> <value>  задать параметр конфигурации
+  config-get <key>          показать параметр конфигурации
   add         добавить объект
   list        показать список объектов (из локального кэша)
   get <id>    показать объект

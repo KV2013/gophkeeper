@@ -19,6 +19,10 @@ const (
 	KeySalt = "salt"
 	// KeyMasterKey — производный ключ шифрования (hex).
 	KeyMasterKey = "master_key"
+	// KeyMasterKeyCreatedAt — время создания ключа (unix-секунды).
+	KeyMasterKeyCreatedAt = "master_key_created_at"
+	// KeyTokenExpiresAt — время истечения JWT-токена (unix-секунды).
+	KeyTokenExpiresAt = "token_expires_at"
 )
 
 // ErrNotFound — секрет с заданным ключом не найден.

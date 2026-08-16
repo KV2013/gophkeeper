@@ -79,6 +79,27 @@ func (s *Repository) Close() error {
 	return s.db.Close()
 }
 
+// GetConfig возвращает значение конфигурации по ключу.
+func (s *Repository) GetConfig(ctx context.Context, key string) (string, error) {
+	var value string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM client_config WHERE key = $1`, key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
+// SetConfig сохраняет (или обновляет) значение конфигурации по ключу.
+func (s *Repository) SetConfig(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO client_config (key, value) VALUES ($1, $2)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	return err
+}
+
 // UpsertObject вставляет или обновляет объект в кэше.
 func (s *Repository) UpsertObject(ctx context.Context, o *model.Object) error {
 	_, err := s.db.ExecContext(ctx, `

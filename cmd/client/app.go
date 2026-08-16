@@ -8,11 +8,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/term"
 
 	"github.com/victor/gophkeeper/internal/client/api"
+	clientconfig "github.com/victor/gophkeeper/internal/client/config"
 	clientkeyring "github.com/victor/gophkeeper/internal/client/keyring"
 	clientpath "github.com/victor/gophkeeper/internal/client/path"
 	"github.com/victor/gophkeeper/internal/client/repository"
@@ -86,10 +90,27 @@ func (a *app) requireToken() (string, error) {
 	if err != nil {
 		return "", errors.New("не выполнен вход — запустите команду login")
 	}
+	if a.sessionExpired() {
+		_ = a.clearAuth()
+		return "", errors.New("сессия истекла — выполните команду login")
+	}
 	return token, nil
 }
 
-// saveAuth сохраняет токен, соль и производный ключ шифрования в keyring.
+// sessionExpired возвращает true, если JWT-токен истёк.
+func (a *app) sessionExpired() bool {
+	v, err := a.keyring.Get(clientkeyring.KeyTokenExpiresAt)
+	if err != nil {
+		return false
+	}
+	exp, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return false
+	}
+	return time.Now().Unix() > exp
+}
+
+// saveAuth сохраняет токен, соль, производный ключ и метки времени в keyring.
 func (a *app) saveAuth(token string, salt []byte, masterPassword string) error {
 	if err := a.keyring.Set(clientkeyring.KeyToken, token); err != nil {
 		return err
@@ -97,11 +118,23 @@ func (a *app) saveAuth(token string, salt []byte, masterPassword string) error {
 	if err := a.keyring.Set(clientkeyring.KeySalt, hex.EncodeToString(salt)); err != nil {
 		return err
 	}
+
 	key, err := crypto.DeriveKey(masterPassword, salt)
 	if err != nil {
 		return err
 	}
-	return a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:]))
+	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
+		return err
+	}
+	if err := a.keyring.Set(clientkeyring.KeyMasterKeyCreatedAt, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+		return err
+	}
+
+	exp, err := tokenExpiresAt(token)
+	if err != nil {
+		return err
+	}
+	return a.keyring.Set(clientkeyring.KeyTokenExpiresAt, strconv.FormatInt(exp, 10))
 }
 
 // loadSalt читает соль KDF из keyring.
@@ -113,19 +146,12 @@ func (a *app) loadSalt() ([]byte, error) {
 	return hex.DecodeString(s)
 }
 
-// masterKey возвращает производный ключ шифрования из keyring; при отсутствии
-// выводит его заново из мастер-пароля, запрошенного у пользователя.
+// masterKey возвращает производный ключ шифрования: из keyring, если он свежий,
+// иначе выводит его заново из мастер-пароля, запрошенного у пользователя.
 func (a *app) masterKey() (crypto.Key, error) {
-	if v, err := a.keyring.Get(clientkeyring.KeyMasterKey); err == nil && v != "" {
-		raw, err := hex.DecodeString(v)
-		if err != nil {
-			return crypto.Key{}, err
-		}
-		if len(raw) != crypto.KeySize {
-			return crypto.Key{}, errors.New("неверный размер сохранённого ключа")
-		}
-		var key crypto.Key
-		copy(key[:], raw)
+	if key, ok, err := a.cachedMasterKey(); err != nil {
+		return crypto.Key{}, err
+	} else if ok {
 		return key, nil
 	}
 
@@ -147,18 +173,83 @@ func (a *app) masterKey() (crypto.Key, error) {
 	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
 		return crypto.Key{}, err
 	}
+	if err := a.keyring.Set(clientkeyring.KeyMasterKeyCreatedAt, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+		return crypto.Key{}, err
+	}
 	return key, nil
 }
 
-// clearAuth удаляет сохранённые токен, соль и ключ (выход из сессии).
+// cachedMasterKey возвращает свежий ключ из keyring; (nil, false), если его нет
+// или он протух (в этом случае протухший ключ удаляется).
+func (a *app) cachedMasterKey() (crypto.Key, bool, error) {
+	v, err := a.keyring.Get(clientkeyring.KeyMasterKey)
+	if err != nil || v == "" {
+		return crypto.Key{}, false, nil
+	}
+	raw, err := hex.DecodeString(v)
+	if err != nil {
+		return crypto.Key{}, false, err
+	}
+	if len(raw) != crypto.KeySize {
+		return crypto.Key{}, false, errors.New("неверный размер сохранённого ключа")
+	}
+	if a.masterKeyExpired() {
+		_ = a.keyring.Delete(clientkeyring.KeyMasterKey)
+		_ = a.keyring.Delete(clientkeyring.KeyMasterKeyCreatedAt)
+		return crypto.Key{}, false, nil
+	}
+	var key crypto.Key
+	copy(key[:], raw)
+	return key, true, nil
+}
+
+// masterKeyExpired возвращает true, если производный ключ протух.
+func (a *app) masterKeyExpired() bool {
+	ttl, err := clientconfig.MasterKeyTTL(ctx(), a.store)
+	if err != nil {
+		return false
+	}
+	if ttl == 0 {
+		return false
+	}
+	createdStr, err := a.keyring.Get(clientkeyring.KeyMasterKeyCreatedAt)
+	if err != nil {
+		return false
+	}
+	createdUnix, err := strconv.ParseInt(createdStr, 10, 64)
+	if err != nil {
+		return false
+	}
+	return clientconfig.IsExpired(time.Unix(createdUnix, 0), time.Now(), ttl)
+}
+
+// clearAuth удаляет сохранённые токен, соль, ключ и метки (выход из сессии).
 func (a *app) clearAuth() error {
-	if err := a.keyring.Delete(clientkeyring.KeyToken); err != nil {
-		return err
+	for _, k := range []string{
+		clientkeyring.KeyToken,
+		clientkeyring.KeySalt,
+		clientkeyring.KeyMasterKey,
+		clientkeyring.KeyMasterKeyCreatedAt,
+		clientkeyring.KeyTokenExpiresAt,
+	} {
+		if err := a.keyring.Delete(k); err != nil {
+			return err
+		}
 	}
-	if err := a.keyring.Delete(clientkeyring.KeySalt); err != nil {
-		return err
+	return nil
+}
+
+// tokenExpiresAt возвращает время истечения JWT-токена в unix-секундах.
+func tokenExpiresAt(token string) (int64, error) {
+	claims := jwt.MapClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
+		return 0, err
 	}
-	return a.keyring.Delete(clientkeyring.KeyMasterKey)
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return 0, errors.New("токен не содержит поле exp")
+	}
+	return int64(exp), nil
 }
 
 // ctx возвращает фоновый контекст для запросов.
