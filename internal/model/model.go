@@ -57,6 +57,8 @@ type Object struct {
 	ID string `json:"id" db:"id"`
 	// UserID — идентификатор владельца объекта.
 	UserID string `json:"user_id" db:"user_id"`
+	// Name — человекочитаемое имя объекта (открытый текст для списка/поиска).
+	Name string `json:"name" db:"name"`
 	// Type — тип хранимого объекта.
 	Type SecretType `json:"type" db:"type"`
 	// Salt — соль KDF (размер crypto.SaltSize), общая для пользователя.

@@ -99,9 +99,9 @@ func (r *Repository) GetUserByLogin(ctx context.Context, login string) (*model.U
 // CreateObject сохраняет новый объект.
 func (r *Repository) CreateObject(ctx context.Context, obj *model.Object) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO objects (id, user_id, type, salt, ciphertext, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		obj.ID, obj.UserID, obj.Type, obj.Salt, obj.Ciphertext, obj.CreatedAt, obj.UpdatedAt,
+		`INSERT INTO objects (id, user_id, name, type, salt, ciphertext, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		obj.ID, obj.UserID, obj.Name, obj.Type, obj.Salt, obj.Ciphertext, obj.CreatedAt, obj.UpdatedAt,
 	)
 	return err
 }
@@ -110,7 +110,7 @@ func (r *Repository) CreateObject(ctx context.Context, obj *model.Object) error 
 func (r *Repository) GetObject(ctx context.Context, userID, id string) (*model.Object, error) {
 	var o model.Object
 	err := r.db.GetContext(ctx, &o,
-		`SELECT id, user_id, type, salt, ciphertext, created_at, updated_at
+		`SELECT id, user_id, name, type, salt, ciphertext, created_at, updated_at
 		 FROM objects WHERE id = $1 AND user_id = $2`, id, userID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -126,7 +126,7 @@ func (r *Repository) GetObject(ctx context.Context, userID, id string) (*model.O
 func (r *Repository) ListObjects(ctx context.Context, userID string) ([]*model.Object, error) {
 	objects := []*model.Object{}
 	err := r.db.SelectContext(ctx, &objects,
-		`SELECT id, user_id, type, salt, ciphertext, created_at, updated_at
+		`SELECT id, user_id, name, type, salt, ciphertext, created_at, updated_at
 		 FROM objects WHERE user_id = $1 ORDER BY created_at`, userID,
 	)
 	if err != nil {
@@ -138,9 +138,9 @@ func (r *Repository) ListObjects(ctx context.Context, userID string) ([]*model.O
 // UpdateObject обновляет объект.
 func (r *Repository) UpdateObject(ctx context.Context, obj *model.Object) error {
 	res, err := r.db.ExecContext(ctx,
-		`UPDATE objects SET type = $1, salt = $2, ciphertext = $3, updated_at = $4
-		 WHERE id = $5 AND user_id = $6`,
-		obj.Type, obj.Salt, obj.Ciphertext, obj.UpdatedAt, obj.ID, obj.UserID,
+		`UPDATE objects SET name = $1, type = $2, salt = $3, ciphertext = $4, updated_at = $5
+		 WHERE id = $6 AND user_id = $7`,
+		obj.Name, obj.Type, obj.Salt, obj.Ciphertext, obj.UpdatedAt, obj.ID, obj.UserID,
 	)
 	if err != nil {
 		return err

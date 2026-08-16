@@ -12,6 +12,8 @@ import (
 
 // createObjectRequest — запрос на создание/обновление объекта.
 type createObjectRequest struct {
+	// Name — человекочитаемое имя объекта.
+	Name string `json:"name"`
 	// Type — тип объекта.
 	Type model.SecretType `json:"type"`
 	// Salt — соль KDF (base64).
@@ -38,7 +40,7 @@ func (h *Handler) CreateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	obj, err := h.object.CreateObject(r.Context(), userID(r.Context()), req.Type, req.Salt, req.Ciphertext)
+	obj, err := h.object.CreateObject(r.Context(), userID(r.Context()), req.Name, req.Type, req.Salt, req.Ciphertext)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -74,7 +76,7 @@ func (h *Handler) UpdateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	obj, err := h.object.UpdateObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Type, req.Salt, req.Ciphertext)
+	obj, err := h.object.UpdateObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Name, req.Type, req.Salt, req.Ciphertext)
 	if err != nil {
 		h.writeError(w, err)
 		return

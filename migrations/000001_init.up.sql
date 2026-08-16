@@ -9,6 +9,7 @@ CREATE TABLE users (
 CREATE TABLE objects (
     id         TEXT PRIMARY KEY,
     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
     type       TEXT NOT NULL,
     salt       BYTEA NOT NULL,
     ciphertext BYTEA NOT NULL,

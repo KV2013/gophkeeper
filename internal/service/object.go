@@ -49,8 +49,8 @@ func NewObjectService(repo objectRepository, logger *zap.Logger) *ObjectService 
 }
 
 // CreateObject создаёт новый объект пользователя.
-func (s *ObjectService) CreateObject(ctx context.Context, userID string, typ model.SecretType, salt, ciphertext []byte) (*model.Object, error) {
-	if err := validateObject(typ, salt, ciphertext); err != nil {
+func (s *ObjectService) CreateObject(ctx context.Context, userID, name string, typ model.SecretType, salt, ciphertext []byte) (*model.Object, error) {
+	if err := validateObject(name, typ, salt, ciphertext); err != nil {
 		return nil, err
 	}
 
@@ -58,6 +58,7 @@ func (s *ObjectService) CreateObject(ctx context.Context, userID string, typ mod
 	obj := &model.Object{
 		ID:         uuid.NewString(),
 		UserID:     userID,
+		Name:       name,
 		Type:       typ,
 		Salt:       salt,
 		Ciphertext: ciphertext,
@@ -85,8 +86,8 @@ func (s *ObjectService) ListObjects(ctx context.Context, userID string) ([]*mode
 }
 
 // UpdateObject обновляет содержимое объекта.
-func (s *ObjectService) UpdateObject(ctx context.Context, userID, id string, typ model.SecretType, salt, ciphertext []byte) (*model.Object, error) {
-	if err := validateObject(typ, salt, ciphertext); err != nil {
+func (s *ObjectService) UpdateObject(ctx context.Context, userID, id, name string, typ model.SecretType, salt, ciphertext []byte) (*model.Object, error) {
+	if err := validateObject(name, typ, salt, ciphertext); err != nil {
 		return nil, err
 	}
 
@@ -101,6 +102,7 @@ func (s *ObjectService) UpdateObject(ctx context.Context, userID, id string, typ
 	obj := &model.Object{
 		ID:         existing.ID,
 		UserID:     userID,
+		Name:       name,
 		Type:       typ,
 		Salt:       salt,
 		Ciphertext: ciphertext,
@@ -196,7 +198,10 @@ func (s *ObjectService) DeleteMetadata(ctx context.Context, userID, objectID, me
 }
 
 // validateObject проверяет корректность входных данных объекта.
-func validateObject(typ model.SecretType, salt, ciphertext []byte) error {
+func validateObject(name string, typ model.SecretType, salt, ciphertext []byte) error {
+	if name == "" {
+		return ErrBadRequest
+	}
 	if !typ.Valid() {
 		return ErrBadRequest
 	}

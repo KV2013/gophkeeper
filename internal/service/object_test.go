@@ -28,7 +28,7 @@ func testSalt(t *testing.T) []byte {
 func TestCreateObjectSuccess(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}
@@ -38,12 +38,15 @@ func TestCreateObjectSuccess(t *testing.T) {
 	if obj.UserID != "user-1" {
 		t.Fatalf("UserID: got %q, want user-1", obj.UserID)
 	}
+	if obj.Name != "test" {
+		t.Fatalf("Name: got %q, want test", obj.Name)
+	}
 }
 
 func TestCreateObjectInvalidType(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	_, err := svc.CreateObject(context.Background(), "user-1", model.SecretType("bogus"), testSalt(t), []byte("cipher"))
+	_, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretType("bogus"), testSalt(t), []byte("cipher"))
 	if !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("ожидалась ErrBadRequest, got %v", err)
 	}
@@ -52,7 +55,16 @@ func TestCreateObjectInvalidType(t *testing.T) {
 func TestCreateObjectInvalidSalt(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	_, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, []byte("short"), []byte("cipher"))
+	_, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, []byte("short"), []byte("cipher"))
+	if !errors.Is(err, ErrBadRequest) {
+		t.Fatalf("ожидалась ErrBadRequest, got %v", err)
+	}
+}
+
+func TestCreateObjectInvalidName(t *testing.T) {
+	svc, _ := newTestObjectService()
+
+	_, err := svc.CreateObject(context.Background(), "user-1", "", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if !errors.Is(err, ErrBadRequest) {
 		t.Fatalf("ожидалась ErrBadRequest, got %v", err)
 	}
@@ -69,17 +81,20 @@ func TestGetObjectNotFound(t *testing.T) {
 func TestUpdateObject(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}
 
-	updated, err := svc.UpdateObject(context.Background(), "user-1", obj.ID, model.SecretTypeCard, testSalt(t), []byte("new-cipher"))
+	updated, err := svc.UpdateObject(context.Background(), "user-1", obj.ID, "renamed", model.SecretTypeCard, testSalt(t), []byte("new-cipher"))
 	if err != nil {
 		t.Fatalf("UpdateObject: %v", err)
 	}
 	if updated.Type != model.SecretTypeCard {
 		t.Fatalf("Type: got %q, want card", updated.Type)
+	}
+	if updated.Name != "renamed" {
+		t.Fatalf("Name: got %q, want renamed", updated.Name)
 	}
 	if string(updated.Ciphertext) != "new-cipher" {
 		t.Fatalf("Ciphertext: got %q, want new-cipher", updated.Ciphertext)
@@ -89,7 +104,7 @@ func TestUpdateObject(t *testing.T) {
 func TestDeleteObject(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}
@@ -105,7 +120,7 @@ func TestDeleteObject(t *testing.T) {
 func TestCreateMetadata(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}
@@ -133,7 +148,7 @@ func TestCreateMetadataInvalidName(t *testing.T) {
 func TestListMetadata(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}
@@ -156,7 +171,7 @@ func TestListMetadata(t *testing.T) {
 func TestUpdateAndDeleteMetadata(t *testing.T) {
 	svc, _ := newTestObjectService()
 
-	obj, err := svc.CreateObject(context.Background(), "user-1", model.SecretTypeText, testSalt(t), []byte("cipher"))
+	obj, err := svc.CreateObject(context.Background(), "user-1", "test", model.SecretTypeText, testSalt(t), []byte("cipher"))
 	if err != nil {
 		t.Fatalf("CreateObject: %v", err)
 	}

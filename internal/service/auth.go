@@ -44,20 +44,20 @@ func NewAuthService(repo userRepository, logger *zap.Logger, jwtSecret string, t
 	}
 }
 
-// Register регистрирует нового пользователя и возвращает JWT-токен.
-func (s *AuthService) Register(ctx context.Context, login, password string) (string, error) {
+// Register регистрирует нового пользователя и возвращает JWT-токен и соль KDF.
+func (s *AuthService) Register(ctx context.Context, login, password string) (token string, salt []byte, err error) {
 	if login == "" || password == "" {
-		return "", ErrBadRequest
+		return "", nil, ErrBadRequest
 	}
 
-	salt, err := crypto.NewSalt()
+	salt, err = crypto.NewSalt()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	user := &model.User{
@@ -69,29 +69,37 @@ func (s *AuthService) Register(ctx context.Context, login, password string) (str
 	}
 	if err := s.repo.CreateUser(ctx, user); err != nil {
 		if errors.Is(err, repoerrors.ErrLoginExists) {
-			return "", ErrInvalidCredentials
+			return "", nil, ErrInvalidCredentials
 		}
-		return "", err
+		return "", nil, err
 	}
 
-	return s.issueToken(user.ID)
+	token, err = s.issueToken(user.ID)
+	if err != nil {
+		return "", nil, err
+	}
+	return token, user.Salt, nil
 }
 
-// Login аутентифицирует пользователя и возвращает JWT-токен.
-func (s *AuthService) Login(ctx context.Context, login, password string) (string, error) {
+// Login аутентифицирует пользователя и возвращает JWT-токен и соль KDF.
+func (s *AuthService) Login(ctx context.Context, login, password string) (token string, salt []byte, err error) {
 	user, err := s.repo.GetUserByLogin(ctx, login)
 	if err != nil {
 		if errors.Is(err, repoerrors.ErrNotFound) {
-			return "", ErrInvalidCredentials
+			return "", nil, ErrInvalidCredentials
 		}
-		return "", err
+		return "", nil, err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return "", ErrInvalidCredentials
+		return "", nil, ErrInvalidCredentials
 	}
 
-	return s.issueToken(user.ID)
+	token, err = s.issueToken(user.ID)
+	if err != nil {
+		return "", nil, err
+	}
+	return token, user.Salt, nil
 }
 
 // issueToken выпускает JWT-токен для пользователя.

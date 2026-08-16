@@ -15,10 +15,12 @@ type credentialsRequest struct {
 	Password string `json:"password"`
 }
 
-// tokenResponse — ответ с JWT-токеном.
+// tokenResponse — ответ с JWT-токеном и солью KDF.
 type tokenResponse struct {
 	// Token — JWT-токен доступа.
 	Token string `json:"token"`
+	// Salt — соль KDF для вывода мастер-ключа на клиенте (base64).
+	Salt []byte `json:"salt"`
 }
 
 // Register обрабатывает POST /api/v1/register.
@@ -29,12 +31,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.auth.Register(r.Context(), req.Login, req.Password)
+	token, salt, err := h.auth.Register(r.Context(), req.Login, req.Password)
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, tokenResponse{Token: token})
+	h.writeJSON(w, http.StatusOK, tokenResponse{Token: token, Salt: salt})
 }
 
 // Login обрабатывает POST /api/v1/login.
@@ -45,10 +47,10 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.auth.Login(r.Context(), req.Login, req.Password)
+	token, salt, err := h.auth.Login(r.Context(), req.Login, req.Password)
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, tokenResponse{Token: token})
+	h.writeJSON(w, http.StatusOK, tokenResponse{Token: token, Salt: salt})
 }
