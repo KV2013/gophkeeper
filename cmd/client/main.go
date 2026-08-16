@@ -14,10 +14,18 @@ var (
 	buildCommit  = "unknown"
 )
 
+// Параметры TLS, задаваемые через флаги и используемые при создании клиента.
+var (
+	caCertPath string
+	insecure   bool
+)
+
 func main() {
 	root := flag.NewFlagSet("gophkeeper", flag.ExitOnError)
 	root.Usage = usage
 	server := root.String("server", defaultServer(), "адрес сервера (например http://localhost:8080)")
+	root.StringVar(&caCertPath, "cacert", "", "путь к CA-сертификату сервера (PEM)")
+	root.BoolVar(&insecure, "insecure", false, "не проверять TLS-сертификат (только для разработки)")
 	_ = root.Parse(os.Args[1:])
 
 	args := root.Args()
@@ -57,7 +65,12 @@ func usage() {
 	fmt.Fprint(os.Stderr, `GophKeeper — менеджер паролей (CLI).
 
 Использование:
-  gophkeeper [--server URL] <команда> [аргументы]
+  gophkeeper [--server URL] [--cacert <путь>] [--insecure] <команда> [аргументы]
+
+Флаги:
+  --server URL   адрес сервера (например https://localhost:8080)
+  --cacert путь  доверять CA-сертификату сервера из PEM-файла
+  --insecure     не проверять TLS-сертификат (только для разработки)
 
 Команды:
   register    зарегистрировать пользователя

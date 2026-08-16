@@ -43,7 +43,19 @@ func newApp(serverURL string) (*app, error) {
 	}
 
 	kr := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"))
-	apiClient := api.New(serverURL)
+
+	var opts []api.Option
+	if caCertPath != "" {
+		opts = append(opts, api.WithCACertFile(caCertPath))
+	}
+	if insecure {
+		opts = append(opts, api.WithInsecure())
+	}
+
+	apiClient, err := api.New(serverURL, opts...)
+	if err != nil {
+		return nil, err
+	}
 
 	return &app{
 		api:     apiClient,

@@ -4,10 +4,14 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -20,11 +24,50 @@ type Client struct {
 	http    *http.Client
 }
 
-// New создаёт клиент сервера по базовому URL.
-func New(baseURL string) *Client {
-	return &Client{
+// Option — функция настройки клиента.
+type Option func(*Client) error
+
+// New создаёт клиент сервера по базовому URL и применяет переданные опции.
+func New(baseURL string, opts ...Option) (*Client, error) {
+	c := &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		http:    &http.Client{Timeout: 15 * time.Second},
+	}
+	for _, opt := range opts {
+		if err := opt(c); err != nil {
+			return nil, err
+		}
+	}
+	return c, nil
+}
+
+// WithCACertFile добавляет сертификат из PEM-файла в пул корневых CA клиента.
+// Используется для доверия самоподписным сертификатам сервера.
+func WithCACertFile(path string) Option {
+	return func(c *Client) error {
+		pem, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("не удалось прочитать CA-сертификат: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return errors.New("не удалось разобрать CA-сертификат")
+		}
+		c.http.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+		}
+		return nil
+	}
+}
+
+// WithInsecure отключает проверку TLS-сертификата сервера.
+// Использовать только в dev-окружении.
+func WithInsecure() Option {
+	return func(c *Client) error {
+		c.http.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		return nil
 	}
 }
 

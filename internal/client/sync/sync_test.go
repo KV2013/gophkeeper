@@ -95,7 +95,11 @@ func TestSyncer(t *testing.T) {
 			defer srv.Close()
 
 			store := openStore(t)
-			s := New(api.New(srv.URL), store)
+			apiClient, err := api.New(srv.URL)
+			if err != nil {
+				t.Fatalf("api.New: %v", err)
+			}
+			s := New(apiClient, store)
 
 			if err := tc.act(s, store); err != nil {
 				t.Fatal(err)
