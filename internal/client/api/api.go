@@ -20,8 +20,10 @@ import (
 
 // Client — HTTP-клиент сервера.
 type Client struct {
-	baseURL string
-	http    *http.Client
+	baseURL   string
+	transport *http.Transport
+	http      *http.Client
+	file      *http.Client
 }
 
 // Option — функция настройки клиента.
@@ -29,9 +31,12 @@ type Option func(*Client) error
 
 // New создаёт клиент сервера по базовому URL и применяет переданные опции.
 func New(baseURL string, opts ...Option) (*Client, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
 	c := &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		http:    &http.Client{Timeout: 15 * time.Second},
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		transport: transport,
+		http:      &http.Client{Timeout: 15 * time.Second, Transport: transport},
+		file:      &http.Client{Transport: transport},
 	}
 	for _, opt := range opts {
 		if err := opt(c); err != nil {
@@ -53,9 +58,7 @@ func WithCACertFile(path string) Option {
 		if !pool.AppendCertsFromPEM(pem) {
 			return errors.New("не удалось разобрать CA-сертификат")
 		}
-		c.http.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
-		}
+		c.transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 		return nil
 	}
 }
@@ -64,9 +67,7 @@ func WithCACertFile(path string) Option {
 // Использовать только в dev-окружении.
 func WithInsecure() Option {
 	return func(c *Client) error {
-		c.http.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
+		c.transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		return nil
 	}
 }
@@ -173,6 +174,50 @@ func (c *Client) UpdateObject(ctx context.Context, token, id string, req CreateO
 func (c *Client) DeleteObject(ctx context.Context, token, id string) error {
 	_, err := c.do(ctx, http.MethodDelete, "/api/v1/objects/"+id, token, nil)
 	return err
+}
+
+// UploadFile передаёт бинарный файл на сервер потоком. body читается до EOF,
+// size — известный размер тела (для Content-Length).
+func (c *Client) UploadFile(ctx context.Context, token, id string, body io.Reader, size int64) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.baseURL+"/api/v1/files/"+id, body)
+	if err != nil {
+		return err
+	}
+	req.ContentLength = size
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.file.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return decodeError(data, resp.StatusCode)
+	}
+	return nil
+}
+
+// DownloadFile скачивает бинарный файл с сервера потоком.
+func (c *Client) DownloadFile(ctx context.Context, token, id string) (io.ReadCloser, int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/files/"+id, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.file.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	if resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, 0, decodeError(data, resp.StatusCode)
+	}
+	return resp.Body, resp.ContentLength, nil
 }
 
 // auth выполняет регистрацию или вход.

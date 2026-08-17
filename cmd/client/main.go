@@ -50,11 +50,13 @@ func main() {
 	case "config-get":
 		cmdConfigGet(*server, args[1:])
 	case "add":
-		cmdAdd(*server)
+		cmdAdd(*server, args[1:])
 	case "list":
 		cmdList(*server)
 	case "get":
 		cmdGet(*server, args[1:])
+	case "download":
+		cmdDownload(*server, args[1:])
 	case "edit":
 		cmdEdit(*server, args[1:])
 	case "delete":
@@ -91,6 +93,7 @@ func usage() {
   add         добавить объект
   list        показать список объектов (из локального кэша)
   get <id>    показать объект
+  download <id>  скачать файл (для бинарных объектов)
   edit <id>   изменить объект
   delete <id> удалить объект
   sync        синхронизировать данные с сервером

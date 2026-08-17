@@ -32,6 +32,9 @@ func Init(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.Mux {
 			r.Put("/objects/{id}", h.UpdateObject)
 			r.Delete("/objects/{id}", h.DeleteObject)
 
+			r.Put("/files/{id}", h.UploadFile)
+			r.Get("/files/{id}", h.DownloadFile)
+
 			r.Post("/objects/{id}/metadata", h.CreateMetadata)
 			r.Get("/objects/{id}/metadata", h.ListMetadata)
 			r.Put("/objects/{id}/metadata/{metaID}", h.UpdateMetadata)

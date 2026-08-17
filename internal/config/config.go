@@ -23,6 +23,16 @@ type Config struct {
 	TokenTTL time.Duration `env:"TOKEN_TTL" json:"token_ttl"`
 	// EnableHTTPS — использовать ли HTTPS с самоподписным сертификатом.
 	EnableHTTPS bool `env:"ENABLE_HTTPS" json:"enable_https"`
+	// S3Endpoint — адрес S3-совместимого хранилища (MinIO).
+	S3Endpoint string `env:"S3_ENDPOINT" json:"s3_endpoint"`
+	// S3AccessKey — ключ доступа к S3.
+	S3AccessKey string `env:"S3_ACCESS_KEY" json:"s3_access_key"`
+	// S3SecretKey — секретный ключ доступа к S3.
+	S3SecretKey string `env:"S3_SECRET_KEY" json:"s3_secret_key"`
+	// S3Bucket — имя бакета для бинарных файлов.
+	S3Bucket string `env:"S3_BUCKET" json:"s3_bucket"`
+	// S3UseSSL — использовать ли TLS при подключении к S3.
+	S3UseSSL bool `env:"S3_USE_SSL" json:"s3_use_ssl"`
 }
 
 // NewConfig собирает конфигурацию из переменных окружения и валидирует её.
@@ -35,6 +45,11 @@ func NewConfig() (*Config, error) {
 		LogLevel:      "info",
 		TokenTTL:      1 * time.Hour,
 		EnableHTTPS:   true,
+		S3Endpoint:    "localhost:9000",
+		S3AccessKey:   "minioadmin",
+		S3SecretKey:   "minioadmin",
+		S3Bucket:      "gophkeeper",
+		S3UseSSL:      false,
 	}
 
 	if err := LoadConfigFile(&cfg); err != nil {

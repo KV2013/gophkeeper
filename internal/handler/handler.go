@@ -17,12 +17,13 @@ import (
 type Handler struct {
 	auth   *service.AuthService
 	object *service.ObjectService
+	file   *service.FileService
 	logger *zap.Logger
 }
 
 // New создаёт обработчик REST API.
-func New(auth *service.AuthService, object *service.ObjectService, logger *zap.Logger) *Handler {
-	return &Handler{auth: auth, object: object, logger: logger}
+func New(auth *service.AuthService, object *service.ObjectService, file *service.FileService, logger *zap.Logger) *Handler {
+	return &Handler{auth: auth, object: object, file: file, logger: logger}
 }
 
 // userID возвращает идентификатор пользователя из контекста запроса.

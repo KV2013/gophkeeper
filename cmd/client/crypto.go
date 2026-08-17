@@ -107,7 +107,7 @@ func readPayloadForType(typ model.SecretType) (any, error) {
 // promptType запрашивает тип объекта до тех пор, пока не введён корректный.
 func promptType() model.SecretType {
 	for {
-		s, err := prompt("тип (login_password|text|card): ")
+		s, err := prompt("тип (login_password|text|card|binary): ")
 		if err != nil {
 			fatal("не удалось прочитать тип: %v", err)
 		}

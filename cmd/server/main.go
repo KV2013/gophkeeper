@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/victor/gophkeeper/internal/config"
+	"github.com/victor/gophkeeper/internal/filestorage"
 	"github.com/victor/gophkeeper/internal/handler"
 	"github.com/victor/gophkeeper/internal/logger"
 	"github.com/victor/gophkeeper/internal/repository"
@@ -48,15 +49,27 @@ func main() {
 
 	authService := service.NewAuthService(repo, log, cfg.JWTSecret, cfg.TokenTTL)
 	objectService := service.NewObjectService(repo, log)
-	h := handler.New(authService, objectService, log)
+
+	fileStorage, err := filestorage.New(filestorage.Config{
+		Endpoint:  cfg.S3Endpoint,
+		AccessKey: cfg.S3AccessKey,
+		SecretKey: cfg.S3SecretKey,
+		Bucket:    cfg.S3Bucket,
+		UseSSL:    cfg.S3UseSSL,
+	})
+	if err != nil {
+		log.Fatal("Ошибка при создании файлового хранилища", zap.Error(err))
+	}
+	fileService := service.NewFileService(fileStorage, log)
+
+	h := handler.New(authService, objectService, fileService, log)
 
 	mux := router.Init(h, log, cfg)
 	srv := &http.Server{
-		Addr:         cfg.ServerAddress,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              cfg.ServerAddress,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	var certPaths tlscert.CertPaths

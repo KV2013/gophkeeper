@@ -3,11 +3,18 @@ package main
 import (
 	"fmt"
 
+	flag "github.com/spf13/pflag"
+
 	"github.com/victor/gophkeeper/internal/client/api"
+	"github.com/victor/gophkeeper/internal/model"
 )
 
 // cmdAdd обрабатывает команду add (добавление объекта).
-func cmdAdd(serverURL string) {
+func cmdAdd(serverURL string, args []string) {
+	fs := flag.NewFlagSet("add", flag.ExitOnError)
+	filePath := fs.StringP("file", "f", "", "путь к файлу (для типа binary)")
+	_ = fs.Parse(args)
+
 	a := mustApp(serverURL)
 	defer a.close()
 
@@ -28,6 +35,11 @@ func cmdAdd(serverURL string) {
 	}
 	if name == "" {
 		fatal("имя обязательно")
+	}
+
+	if typ == model.SecretTypeBinary {
+		addBinaryFile(a, token, salt, name, *filePath)
+		return
 	}
 
 	data, err := readPayloadForType(typ)
@@ -99,6 +111,11 @@ func cmdGet(serverURL string, args []string) {
 	obj, err := a.sync.GetObject(ctx(), token, id)
 	if err != nil {
 		fatal("не удалось получить объект: %v", err)
+	}
+
+	if obj.Type == model.SecretTypeBinary {
+		printBinaryInfo(obj)
+		return
 	}
 
 	master, err := a.masterKey()

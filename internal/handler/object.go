@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/victor/gophkeeper/internal/model"
 	"github.com/victor/gophkeeper/internal/service"
@@ -86,10 +87,26 @@ func (h *Handler) UpdateObject(w http.ResponseWriter, r *http.Request) {
 
 // DeleteObject обрабатывает DELETE /api/v1/object/{id}.
 func (h *Handler) DeleteObject(w http.ResponseWriter, r *http.Request) {
-	if err := h.object.DeleteObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id")); err != nil {
+	id := chi.URLParam(r, "id")
+	uid := userID(r.Context())
+
+	obj, err := h.object.GetObject(r.Context(), uid, id)
+	if err != nil {
 		h.writeError(w, err)
 		return
 	}
+
+	if err := h.object.DeleteObject(r.Context(), uid, id); err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	if obj.Type == model.SecretTypeBinary {
+		if err := h.file.Delete(r.Context(), uid, id); err != nil {
+			h.logger.Warn("не удалось удалить файл из хранилища", zap.Error(err))
+		}
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

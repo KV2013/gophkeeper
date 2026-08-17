@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -11,12 +12,14 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -138,6 +141,76 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func TestFileTransfer(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		act     func(c *Client) error
+	}{
+		"upload передаёт тело потоком": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPut {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					return
+				}
+				if r.ContentLength <= 0 {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if _, err := io.Copy(io.Discard, r.Body); err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			},
+			act: func(c *Client) error {
+				body := bytes.Repeat([]byte("abc"), 1000)
+				return c.UploadFile(context.Background(), "tok", "id-1", bytes.NewReader(body), int64(len(body)))
+			},
+		},
+		"download возвращает поток": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				data := []byte("file-content")
+				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+				_, _ = w.Write(data)
+			},
+			act: func(c *Client) error {
+				rc, size, err := c.DownloadFile(context.Background(), "tok", "id-1")
+				if err != nil {
+					return err
+				}
+				defer rc.Close()
+				if size != int64(len("file-content")) {
+					return fmt.Errorf("size: got %d, want %d", size, len("file-content"))
+				}
+				data, err := io.ReadAll(rc)
+				if err != nil {
+					return err
+				}
+				if string(data) != "file-content" {
+					return fmt.Errorf("got %q, want file-content", data)
+				}
+				return nil
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(tc.handler)
+			defer srv.Close()
+
+			client, err := New(srv.URL)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			if err := tc.act(client); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestTLS(t *testing.T) {
