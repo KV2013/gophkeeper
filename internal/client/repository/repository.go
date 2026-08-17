@@ -100,6 +100,12 @@ func (s *Repository) SetConfig(ctx context.Context, key, value string) error {
 	return err
 }
 
+// DeleteConfig удаляет значение конфигурации по ключу.
+func (s *Repository) DeleteConfig(ctx context.Context, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM client_config WHERE key = $1`, key)
+	return err
+}
+
 // UpsertObject вставляет или обновляет объект в кэше.
 func (s *Repository) UpsertObject(ctx context.Context, o *model.Object) error {
 	_, err := s.db.ExecContext(ctx, `

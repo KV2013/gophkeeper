@@ -41,6 +41,9 @@ func cmdRegister(serverURL string, args []string) {
 	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
 	}
+	if err := a.saveConnectionConfig(); err != nil {
+		fatal("не удалось сохранить конфигурацию подключения: %v", err)
+	}
 
 	fmt.Printf("пользователь %q зарегистрирован\n", l)
 }
@@ -76,6 +79,16 @@ func cmdLogin(serverURL string, args []string) {
 	}
 	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
+	}
+
+	// Явный --server сбрасывает старые параметры подключения.
+	if serverURL != "" {
+		if err := a.resetConnectionConfig(); err != nil {
+			fatal("не удалось сбросить конфигурацию подключения: %v", err)
+		}
+	}
+	if err := a.saveConnectionConfig(); err != nil {
+		fatal("не удалось сохранить конфигурацию подключения: %v", err)
 	}
 
 	if err := a.sync.Pull(ctx(), resp.Token); err != nil {

@@ -79,6 +79,19 @@ func TestConfig(t *testing.T) {
 				return nil
 			},
 		},
+		"delete удаляет значение": {
+			fn: func(s *Repository) error {
+				if err := s.SetConfig(context.Background(), "k", "v"); err != nil {
+					return err
+				}
+				if err := s.DeleteConfig(context.Background(), "k"); err != nil {
+					return err
+				}
+				_, err := s.GetConfig(context.Background(), "k")
+				return err
+			},
+			wantErr: ErrNotFound,
+		},
 	}
 
 	for name, tc := range tests {

@@ -21,6 +21,16 @@ const (
 	MaxMasterKeyTTL = 24 * time.Hour
 )
 
+// Ключи конфигурации подключения к серверу.
+const (
+	// KeyConnectServerAddress — адрес сервера.
+	KeyConnectServerAddress = "connect_server_address"
+	// KeyConnectInsecure — не проверять TLS-сертификат ("true"/"false").
+	KeyConnectInsecure = "connect_insecure"
+	// KeyConnectCACert — путь к CA-сертификату (PEM).
+	KeyConnectCACert = "connect_cacert"
+)
+
 // ErrInvalidTTL — переданное значение TTL некорректно.
 var ErrInvalidTTL = errors.New("config: неверное значение TTL")
 

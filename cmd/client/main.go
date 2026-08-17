@@ -23,7 +23,7 @@ var (
 func main() {
 	root := flag.NewFlagSet("gophkeeper", flag.ExitOnError)
 	root.Usage = usage
-	server := root.String("server", defaultServer(), "адрес сервера (например http://localhost:8080)")
+	server := root.String("server", "", "адрес сервера (например https://localhost:8080)")
 	root.StringVar(&caCertPath, "cacert", "", "путь к CA-сертификату сервера (PEM)")
 	root.BoolVar(&insecure, "insecure", false, "не проверять TLS-сертификат (только для разработки)")
 	_ = root.Parse(os.Args[1:])
@@ -76,7 +76,8 @@ func usage() {
   gophkeeper [--server URL] [--cacert <путь>] [--insecure] <команда> [аргументы]
 
 Флаги:
-  --server URL   адрес сервера (например https://localhost:8080)
+  --server URL   адрес сервера (например https://localhost:8080); если не задан,
+                 используется значение из client_config (connect_server_address)
   --cacert путь  доверять CA-сертификату сервера из PEM-файла
   --insecure     не проверять TLS-сертификат (только для разработки)
 

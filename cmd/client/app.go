@@ -29,10 +29,11 @@ const keyringService = "gophkeeper"
 
 // app — связка API-клиента, локального кэша и keyring.
 type app struct {
-	api     *api.Client
-	store   *repository.Repository
-	keyring *clientkeyring.Store
-	sync    *sync.Syncer
+	api       *api.Client
+	store     *repository.Repository
+	keyring   *clientkeyring.Store
+	sync      *sync.Syncer
+	serverURL string
 }
 
 // newApp инициализирует клиентское приложение.
@@ -49,25 +50,88 @@ func newApp(serverURL string) (*app, error) {
 
 	kr := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"))
 
+	resolvedServer, resolvedInsecure, resolvedCACert := resolveConnection(store, serverURL)
+
 	var opts []api.Option
-	if caCertPath != "" {
-		opts = append(opts, api.WithCACertFile(caCertPath))
-	}
-	if insecure {
+	if resolvedInsecure {
 		opts = append(opts, api.WithInsecure())
+	} else if resolvedCACert != "" {
+		opts = append(opts, api.WithCACertFile(resolvedCACert))
 	}
 
-	apiClient, err := api.New(serverURL, opts...)
+	apiClient, err := api.New(resolvedServer, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return &app{
-		api:     apiClient,
-		store:   store,
-		keyring: kr,
-		sync:    sync.New(apiClient, store),
+		api:       apiClient,
+		store:     store,
+		keyring:   kr,
+		sync:      sync.New(apiClient, store),
+		serverURL: resolvedServer,
 	}, nil
+}
+
+// resolveConnection определяет эффективные параметры подключения: сначала
+// флаги командной строки, затем значения из client_config, затем умолчания.
+func resolveConnection(store *repository.Repository, flagServer string) (server string, insecureFlag bool, caCert string) {
+	server = flagServer
+	if server == "" {
+		if v, err := store.GetConfig(ctx(), clientconfig.KeyConnectServerAddress); err == nil && v != "" {
+			server = v
+		}
+	}
+	if server == "" {
+		server = defaultServer()
+	}
+
+	insecureFlag = insecure
+	if !insecureFlag {
+		if v, err := store.GetConfig(ctx(), clientconfig.KeyConnectInsecure); err == nil {
+			insecureFlag = v == "true"
+		}
+	}
+
+	caCert = caCertPath
+	if caCert == "" {
+		if v, err := store.GetConfig(ctx(), clientconfig.KeyConnectCACert); err == nil {
+			caCert = v
+		}
+	}
+	return server, insecureFlag, caCert
+}
+
+// saveConnectionConfig сохраняет параметры подключения в client_config.
+func (a *app) saveConnectionConfig() error {
+	if err := a.store.SetConfig(ctx(), clientconfig.KeyConnectServerAddress, a.serverURL); err != nil {
+		return err
+	}
+	if insecure {
+		if err := a.store.SetConfig(ctx(), clientconfig.KeyConnectInsecure, "true"); err != nil {
+			return err
+		}
+	}
+	if caCertPath != "" {
+		if err := a.store.SetConfig(ctx(), clientconfig.KeyConnectCACert, caCertPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resetConnectionConfig удаляет сохранённые параметры подключения.
+func (a *app) resetConnectionConfig() error {
+	for _, k := range []string{
+		clientconfig.KeyConnectServerAddress,
+		clientconfig.KeyConnectInsecure,
+		clientconfig.KeyConnectCACert,
+	} {
+		if err := a.store.DeleteConfig(ctx(), k); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // mustApp создаёт приложение или завершает процесс с ошибкой.
