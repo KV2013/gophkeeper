@@ -27,6 +27,7 @@ const (
 	stateMain
 	stateList
 	stateStats
+	stateCreateType
 	stateCreate
 	stateEdit
 	stateConfirmDelete
@@ -40,6 +41,17 @@ var mainMenuItems = []string{"Создать", "Статистика", "Выхо
 
 // exitMenuItems — пункты меню выхода.
 var exitMenuItems = []string{"Выйти и завершить сессию", "Выйти", "Отмена"}
+
+// createTypeOptions — доступные типы создаваемого объекта.
+var createTypeOptions = []struct {
+	typ   model.SecretType
+	label string
+}{
+	{model.SecretTypeLoginPassword, "логин/пароль"},
+	{model.SecretTypeText, "заметка"},
+	{model.SecretTypeCard, "банковская карта"},
+	{model.SecretTypeBinary, "бинарный файл"},
+}
 
 // objectItem — элемент списка объектов.
 type objectItem struct {
@@ -125,6 +137,9 @@ type tuiModel struct {
 	// главное меню
 	menuIndex int
 	exitIndex int
+
+	// выбор типа при создании
+	createTypeIndex int
 
 	// статистика
 	stats *api.Stats
@@ -539,6 +554,8 @@ func (m tuiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleListKey(msg)
 	case stateStats:
 		return m.handleStatsKey(key)
+	case stateCreateType:
+		return m.handleCreateTypeKey(key)
 	case stateCreate, stateEdit:
 		return m.handleFormKey(msg)
 	case stateConfirmDelete:
@@ -555,7 +572,7 @@ func (m tuiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // возврат на главное меню (в режимах ввода текста клавиша H — обычный символ).
 func (m tuiModel) homeAvailable() bool {
 	switch m.state {
-	case stateList, stateStats, stateConfirmDelete, stateExit:
+	case stateList, stateStats, stateCreateType, stateConfirmDelete, stateExit:
 		return true
 	default:
 		return false
@@ -657,9 +674,9 @@ func (m tuiModel) handleMainKey(key string) (tea.Model, tea.Cmd) {
 func (m tuiModel) selectMenu() (tea.Model, tea.Cmd) {
 	switch mainMenuItems[m.menuIndex] {
 	case "Создать":
-		m.state = stateCreate
+		m.state = stateCreateType
+		m.createTypeIndex = 0
 		m.err = nil
-		m.startForm(model.SecretTypeText, false)
 		return m, nil
 	case "Статистика":
 		m.state = stateStats
@@ -776,6 +793,31 @@ func (m tuiModel) handleStatsKey(key string) (tea.Model, tea.Cmd) {
 		m.state = stateList
 		m.list.Select(0)
 		return m.selectItem()
+	}
+	return m, nil
+}
+
+func (m tuiModel) handleCreateTypeKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "up":
+		if m.createTypeIndex > 0 {
+			m.createTypeIndex--
+		}
+		return m, nil
+	case "down":
+		if m.createTypeIndex < len(createTypeOptions)-1 {
+			m.createTypeIndex++
+		}
+		return m, nil
+	case "enter":
+		typ := createTypeOptions[m.createTypeIndex].typ
+		m.state = stateCreate
+		m.err = nil
+		m.startForm(typ, false)
+		return m, nil
+	case "esc":
+		m.state = stateMain
+		return m, nil
 	}
 	return m, nil
 }
@@ -959,6 +1001,8 @@ func (m tuiModel) View() string {
 		return m.viewDownload()
 	case stateCreate, stateEdit:
 		return m.viewForm()
+	case stateCreateType:
+		return m.viewCreateType()
 	case stateExit:
 		return m.viewExit()
 	}
@@ -1027,6 +1071,28 @@ func (m tuiModel) viewExit() string {
 		fmt.Fprintf(&b, "%s%s\n", cursor, item)
 	}
 	b.WriteString("\n[↑/↓] выбор  [enter] подтвердить  [esc] отмена\n")
+
+	width, height := m.width, m.height
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, b.String())
+}
+
+func (m tuiModel) viewCreateType() string {
+	var b strings.Builder
+	b.WriteString("Выберите тип объекта\n\n")
+	for i, o := range createTypeOptions {
+		cursor := "  "
+		if i == m.createTypeIndex {
+			cursor = "> "
+		}
+		fmt.Fprintf(&b, "%s%s\n", cursor, o.label)
+	}
+	b.WriteString("\n[↑/↓] выбор  [enter] выбрать  [esc] назад  [H] на главную\n")
 
 	width, height := m.width, m.height
 	if width <= 0 {
