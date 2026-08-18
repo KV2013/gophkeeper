@@ -521,6 +521,13 @@ func (m tuiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	// H — глобальный возврат на главное меню (кроме режимов ввода текста).
+	if strings.ToLower(key) == "h" && m.homeAvailable() {
+		m.state = stateMain
+		m.err = nil
+		return m, nil
+	}
+
 	switch m.state {
 	case stateAuth:
 		return m.handleAuthKey(msg)
@@ -542,6 +549,17 @@ func (m tuiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleExitKey(key)
 	}
 	return m, nil
+}
+
+// homeAvailable возвращает true, если в текущем состоянии доступен
+// возврат на главное меню (в режимах ввода текста клавиша H — обычный символ).
+func (m tuiModel) homeAvailable() bool {
+	switch m.state {
+	case stateList, stateStats, stateConfirmDelete, stateExit:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m tuiModel) handleAuthKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -754,9 +772,6 @@ func (m tuiModel) loadSelected() (tuiModel, tea.Cmd) {
 func (m tuiModel) handleStatsKey(key string) (tea.Model, tea.Cmd) {
 	key = strings.ToLower(key)
 	switch key {
-	case "h":
-		m.state = stateMain
-		return m, nil
 	case "l":
 		m.state = stateList
 		m.list.Select(0)
@@ -1110,15 +1125,19 @@ func (m tuiModel) viewObjectDetail() string {
 func (m tuiModel) viewHint() string {
 	switch m.state {
 	case stateMain:
-		return "↑/↓ — навигация   Enter — выбрать   ← — к списку   Q — выход"
+		return "↑/↓ — навигация   Enter — выбрать   ← — к списку   H — на главную   Q — выход"
 	case stateStats:
 		return "H — на главную   L — к списку объектов"
 	case stateList:
-		hint := "↑/↓ — список   ←/→ — фокус   R — показать скрытое   E — редактировать   Delete — удалить"
+		hint := "↑/↓ — список   ←/→ — фокус   H — на главную   R — показать скрытое   E — редактировать   Delete — удалить"
 		if m.selected != nil && m.selected.Type == model.SecretTypeBinary {
 			hint += "   D — скачать файл"
 		}
 		return hint
+	case stateConfirmDelete:
+		return "Y — удалить   N — отмена   H — на главную"
+	case stateExit:
+		return "↑/↓ — выбор   Enter — подтвердить   Esc — отмена   H — на главную"
 	default:
 		return ""
 	}
