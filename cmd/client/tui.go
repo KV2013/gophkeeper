@@ -159,10 +159,13 @@ func RunTUI(a *app, clientVersion string) error {
 func newTUIModel(a *app, clientVersion string) tuiModel {
 	login := textinput.New()
 	login.Placeholder = "логин"
+	login.Width = 40
+	login.Focus()
 
 	password := textinput.New()
 	password.Placeholder = "пароль"
 	password.EchoMode = textinput.EchoPassword
+	password.Width = 40
 
 	pass := textinput.New()
 	pass.Placeholder = "мастер-пароль"
@@ -201,8 +204,7 @@ func (m tuiModel) Init() tea.Cmd {
 	if m.state == stateMain {
 		return tea.Batch(m.fetchObjects(1), m.fetchVersion())
 	}
-	m.authLogin.Focus()
-	return nil
+	return textinput.Blink
 }
 
 // ---- команды ----
@@ -921,13 +923,22 @@ func (m tuiModel) viewAuth() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "GophKeeper TUI — вход\n")
 	fmt.Fprintf(&b, "версия клиента: %s\n\n", m.clientVer)
-	fmt.Fprintf(&b, "Логин:\n%s\n\n", m.authLogin.View())
-	fmt.Fprintf(&b, "Пароль:\n%s\n\n", m.authPassword.View())
+	b.WriteString("нет активной сессии — выполните вход\n\n")
+	b.WriteString("Логин:\n" + m.authLogin.View() + "\n\n")
+	b.WriteString("Пароль:\n" + m.authPassword.View() + "\n\n")
 	if m.err != nil {
 		fmt.Fprintf(&b, "ошибка: %s\n", m.err.Error())
 	}
-	fmt.Fprintf(&b, "\n[tab] переключить  [enter] войти  [ctrl+c] выход\n")
-	return b.String()
+	b.WriteString("\n[tab] переключить  [enter] войти  [ctrl+c] выход\n")
+
+	width, height := m.width, m.height
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, b.String())
 }
 
 func (m tuiModel) viewPassword() string {
