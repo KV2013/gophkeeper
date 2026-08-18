@@ -1111,12 +1111,16 @@ func (m tuiModel) viewForm() string {
 	} else {
 		b.WriteString("Создание объекта\n\n")
 	}
-	fmt.Fprintf(&b, "Поле (%d/%d): %s\n\n", m.formIndex+1, len(m.formFields), m.formFields[m.formIndex])
-	b.WriteString(m.formInput.View() + "\n\n")
+	if m.formIndex < len(m.formFields) {
+		fmt.Fprintf(&b, "Поле (%d/%d): %s\n\n", m.formIndex+1, len(m.formFields), m.formFields[m.formIndex])
+		b.WriteString(m.formInput.View() + "\n\n")
+		b.WriteString("\n[enter] далее  [esc] отмена\n")
+	} else {
+		b.WriteString("Сохранение...\n")
+	}
 	if m.err != nil {
 		fmt.Fprintf(&b, "ошибка: %s\n", m.err.Error())
 	}
-	b.WriteString("\n[enter] далее  [esc] отмена\n")
 	return b.String()
 }
 
