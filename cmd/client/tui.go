@@ -32,10 +32,14 @@ const (
 	stateConfirmDelete
 	stateDownload
 	statePassword
+	stateExit
 )
 
 // mainMenuItems — пункты главного меню.
 var mainMenuItems = []string{"Создать", "Статистика", "Выход"}
+
+// exitMenuItems — пункты меню выхода.
+var exitMenuItems = []string{"Выйти и завершить сессию", "Выйти", "Отмена"}
 
 // objectItem — элемент списка объектов.
 type objectItem struct {
@@ -120,6 +124,7 @@ type tuiModel struct {
 
 	// главное меню
 	menuIndex int
+	exitIndex int
 
 	// статистика
 	stats *api.Stats
@@ -533,6 +538,8 @@ func (m tuiModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleConfirmKey(key)
 	case stateDownload:
 		return m.handleDownloadKey(msg)
+	case stateExit:
+		return m.handleExitKey(key)
 	}
 	return m, nil
 }
@@ -641,7 +648,9 @@ func (m tuiModel) selectMenu() (tea.Model, tea.Cmd) {
 		m.err = nil
 		return m, m.fetchStats()
 	case "Выход":
-		return m, tea.Quit
+		m.state = stateExit
+		m.exitIndex = 0
+		return m, nil
 	}
 	return m, nil
 }
@@ -786,6 +795,36 @@ func (m tuiModel) handleDownloadKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m tuiModel) handleExitKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "up":
+		if m.exitIndex > 0 {
+			m.exitIndex--
+		}
+		return m, nil
+	case "down":
+		if m.exitIndex < len(exitMenuItems)-1 {
+			m.exitIndex++
+		}
+		return m, nil
+	case "enter":
+		switch exitMenuItems[m.exitIndex] {
+		case "Выйти и завершить сессию":
+			_ = m.app.clearAuth()
+			return m, tea.Quit
+		case "Выйти":
+			return m, tea.Quit
+		case "Отмена":
+			m.state = stateMain
+			return m, nil
+		}
+	case "esc":
+		m.state = stateMain
+		return m, nil
+	}
+	return m, nil
+}
+
 // ---- формы ----
 
 func (m *tuiModel) startForm(typ model.SecretType, editing bool) {
@@ -905,6 +944,8 @@ func (m tuiModel) View() string {
 		return m.viewDownload()
 	case stateCreate, stateEdit:
 		return m.viewForm()
+	case stateExit:
+		return m.viewExit()
 	}
 
 	left := lipgloss.NewStyle().Width(40).Border(lipgloss.RoundedBorder()).Render(m.list.View())
@@ -958,6 +999,28 @@ func (m tuiModel) viewDownload() string {
 	b.WriteString(m.dlInput.View() + "\n\n")
 	b.WriteString("[enter] скачать  [esc] отмена\n")
 	return b.String()
+}
+
+func (m tuiModel) viewExit() string {
+	var b strings.Builder
+	b.WriteString("Завершить сессию?\n\n")
+	for i, item := range exitMenuItems {
+		cursor := "  "
+		if i == m.exitIndex {
+			cursor = "> "
+		}
+		fmt.Fprintf(&b, "%s%s\n", cursor, item)
+	}
+	b.WriteString("\n[↑/↓] выбор  [enter] подтвердить  [esc] отмена\n")
+
+	width, height := m.width, m.height
+	if width <= 0 {
+		width = 80
+	}
+	if height <= 0 {
+		height = 24
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, b.String())
 }
 
 func (m tuiModel) viewForm() string {
