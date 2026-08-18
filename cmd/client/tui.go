@@ -53,6 +53,13 @@ var createTypeOptions = []struct {
 	{model.SecretTypeBinary, "бинарный файл"},
 }
 
+// Цвета фокуса.
+var (
+	focusAccent = lipgloss.Color("42")
+	focusBorder = lipgloss.Color("22")
+	focusItem   = lipgloss.NewStyle().Foreground(focusAccent).Bold(true)
+)
+
 // objectItem — элемент списка объектов.
 type objectItem struct {
 	obj *model.Object
@@ -194,7 +201,11 @@ func newTUIModel(a *app, clientVersion string) tuiModel {
 	dl := textinput.New()
 	dl.Placeholder = "путь для сохранения"
 
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 38, 20)
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(focusAccent)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(focusBorder)
+
+	l := list.New([]list.Item{}, delegate, 38, 20)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
@@ -662,7 +673,8 @@ func (m tuiModel) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		if len(m.objects) == 0 {
 			return m, m.fetchObjects(1)
 		}
-		return m, nil
+		m.list.Select(0)
+		return m.selectItem()
 	case "enter":
 		return m.selectMenu()
 	case "q":
@@ -763,6 +775,7 @@ func (m tuiModel) selectItem() (tuiModel, tea.Cmd) {
 	m.selected = obj
 	m.plaintext = ""
 	m.metadata = nil
+	m.reveal = false
 	return m.loadSelected()
 }
 
@@ -1007,8 +1020,16 @@ func (m tuiModel) View() string {
 		return m.viewExit()
 	}
 
-	left := lipgloss.NewStyle().Width(40).Border(lipgloss.RoundedBorder()).Render(m.list.View())
-	right := lipgloss.NewStyle().Width(70).Border(lipgloss.RoundedBorder()).Padding(0, 1).Render(m.viewRight())
+	leftStyle := lipgloss.NewStyle().Width(40).Border(lipgloss.RoundedBorder())
+	rightStyle := lipgloss.NewStyle().Width(70).Border(lipgloss.RoundedBorder()).Padding(0, 1)
+	if m.focusedPanel() == "left" {
+		leftStyle = leftStyle.BorderForeground(focusBorder)
+	} else {
+		rightStyle = rightStyle.BorderForeground(focusBorder)
+	}
+
+	left := leftStyle.Render(m.list.View())
+	right := rightStyle.Render(m.viewRight())
 	hint := lipgloss.NewStyle().
 		Background(lipgloss.Color("236")).
 		Foreground(lipgloss.Color("252")).
@@ -1017,6 +1038,14 @@ func (m tuiModel) View() string {
 
 	content := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 	return lipgloss.JoinVertical(lipgloss.Left, content, hint)
+}
+
+// focusedPanel возвращает "left", если фокус на списке, иначе "right".
+func (m tuiModel) focusedPanel() string {
+	if m.state == stateList {
+		return "left"
+	}
+	return "right"
 }
 
 func (m tuiModel) viewAuth() string {
@@ -1144,11 +1173,11 @@ func (m tuiModel) viewMainMenu() string {
 	var b strings.Builder
 	b.WriteString("Главное меню\n\n")
 	for i, item := range mainMenuItems {
-		cursor := "  "
 		if i == m.menuIndex {
-			cursor = "> "
+			fmt.Fprintf(&b, "%s\n", focusItem.Render("> "+item))
+		} else {
+			fmt.Fprintf(&b, "  %s\n", item)
 		}
-		fmt.Fprintf(&b, "%s%s\n", cursor, item)
 	}
 	return b.String()
 }
