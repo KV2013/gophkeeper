@@ -62,7 +62,11 @@ func main() {
 	}
 	fileService := service.NewFileService(fileStorage, log)
 
-	h := handler.New(authService, objectService, fileService, log)
+	h := handler.New(authService, objectService, fileService, handler.VersionInfo{
+		Version:     buildVersion,
+		BuildDate:   buildDate,
+		BuildCommit: buildCommit,
+	}, log)
 
 	mux := router.Init(h, log, cfg)
 	srv := &http.Server{

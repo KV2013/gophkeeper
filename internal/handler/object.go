@@ -49,14 +49,26 @@ func (h *Handler) CreateObject(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, obj)
 }
 
-// ListObjects обрабатывает GET /api/v1/object.
+// ListObjects обрабатывает GET /api/v1/objects (пагинация в стиле JSON-API).
 func (h *Handler) ListObjects(w http.ResponseWriter, r *http.Request) {
-	objects, err := h.object.ListObjects(r.Context(), userID(r.Context()))
+	page, size := pageParams(r)
+	objects, total, err := h.object.ListObjects(r.Context(), userID(r.Context()), page, size)
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
-	h.writeJSON(w, http.StatusOK, objects)
+
+	resp := objectsPageResponse{
+		Data: objects,
+		Metadata: pageMetadata{
+			Total:      total,
+			Pages:      pagesCount(total, size),
+			PageSize:   size,
+			PageNumber: page,
+		},
+		Links: buildLinks(r, page, size, pagesCount(total, size)),
+	}
+	h.writeJSON(w, http.StatusOK, resp)
 }
 
 // GetObject обрабатывает GET /api/v1/object/{id}.

@@ -16,6 +16,8 @@ type fileStorage interface {
 	Get(ctx context.Context, key string) (io.ReadCloser, int64, error)
 	// Delete удаляет объект по ключу.
 	Delete(ctx context.Context, key string) error
+	// List возвращает количество и суммарный размер объектов с префиксом.
+	List(ctx context.Context, prefix string) (count int, size int64, err error)
 }
 
 // FileService реализует загрузку и скачивание бинарных файлов.
@@ -42,6 +44,11 @@ func (s *FileService) Download(ctx context.Context, userID, objectID string) (io
 // Delete удаляет содержимое файла объекта.
 func (s *FileService) Delete(ctx context.Context, userID, objectID string) error {
 	return s.storage.Delete(ctx, s.key(userID, objectID))
+}
+
+// Stats возвращает количество и суммарный размер файлов пользователя.
+func (s *FileService) Stats(ctx context.Context, userID string) (int, int64, error) {
+	return s.storage.List(ctx, userID+"/")
 }
 
 // key строит ключ объекта в хранилище.

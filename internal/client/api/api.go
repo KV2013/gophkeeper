@@ -132,16 +132,72 @@ func (c *Client) CreateObject(ctx context.Context, token string, req CreateObjec
 }
 
 // ListObjects возвращает все объекты пользователя.
+// Deprecated: используйте ListObjectsPage для пагинации.
 func (c *Client) ListObjects(ctx context.Context, token string) ([]*model.Object, error) {
-	data, err := c.do(ctx, http.MethodGet, "/api/v1/objects", token, nil)
+	objects := []*model.Object{}
+	page := 1
+	for {
+		resp, err := c.ListObjectsPage(ctx, token, page, 100)
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, resp.Data...)
+		if page >= resp.Metadata.Pages || len(resp.Data) == 0 {
+			break
+		}
+		page++
+	}
+	return objects, nil
+}
+
+// ObjectsPage — страница объектов (JSON-API).
+type ObjectsPage struct {
+	Data     []*model.Object `json:"data"`
+	Metadata PageMetadata    `json:"metadata"`
+	Links    PageLinks       `json:"links"`
+}
+
+// PageMetadata — метаданные пагинации.
+type PageMetadata struct {
+	Total      int `json:"total"`
+	Pages      int `json:"pages"`
+	PageSize   int `json:"page_size"`
+	PageNumber int `json:"page_number"`
+}
+
+// PageLinks — ссылки пагинации.
+type PageLinks struct {
+	First string  `json:"first"`
+	Last  string  `json:"last"`
+	Prev  *string `json:"prev"`
+	Next  *string `json:"next"`
+}
+
+// ListObjectsPage возвращает страницу объектов пользователя.
+func (c *Client) ListObjectsPage(ctx context.Context, token string, page, pageSize int) (*ObjectsPage, error) {
+	path := fmt.Sprintf("/api/v1/objects?page[number]=%d&page[size]=%d", page, pageSize)
+	data, err := c.do(ctx, http.MethodGet, path, token, nil)
 	if err != nil {
 		return nil, err
 	}
-	objects := []*model.Object{}
-	if err := json.Unmarshal(data, &objects); err != nil {
+	var resp ObjectsPage
+	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, err
 	}
-	return objects, nil
+	return &resp, nil
+}
+
+// ListMetadata возвращает метаданные объекта.
+func (c *Client) ListMetadata(ctx context.Context, token, objectID string) ([]*model.Metadata, error) {
+	data, err := c.do(ctx, http.MethodGet, "/api/v1/objects/"+objectID+"/metadata", token, nil)
+	if err != nil {
+		return nil, err
+	}
+	metadata := []*model.Metadata{}
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return nil, err
+	}
+	return metadata, nil
 }
 
 // GetObject возвращает объект по идентификатору.
@@ -218,6 +274,46 @@ func (c *Client) DownloadFile(ctx context.Context, token, id string) (io.ReadClo
 		return nil, 0, decodeError(data, resp.StatusCode)
 	}
 	return resp.Body, resp.ContentLength, nil
+}
+
+// VersionInfo — информация о сборке сервера.
+type VersionInfo struct {
+	Version     string `json:"version"`
+	BuildDate   string `json:"build_date"`
+	BuildCommit string `json:"build_commit"`
+}
+
+// ServerVersion возвращает версию сервера.
+func (c *Client) ServerVersion(ctx context.Context) (*VersionInfo, error) {
+	data, err := c.do(ctx, http.MethodGet, "/api/v1/version", "", nil)
+	if err != nil {
+		return nil, err
+	}
+	var v VersionInfo
+	if err := json.Unmarshal(data, &v); err != nil {
+		return nil, err
+	}
+	return &v, nil
+}
+
+// Stats — статистика пользователя.
+type Stats struct {
+	ObjectsCount   int   `json:"objects_count"`
+	FilesCount     int   `json:"files_count"`
+	FilesTotalSize int64 `json:"files_total_size"`
+}
+
+// Stats возвращает статистику пользователя.
+func (c *Client) Stats(ctx context.Context, token string) (*Stats, error) {
+	data, err := c.do(ctx, http.MethodGet, "/api/v1/stats", token, nil)
+	if err != nil {
+		return nil, err
+	}
+	var s Stats
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 
 // auth выполняет регистрацию или вход.

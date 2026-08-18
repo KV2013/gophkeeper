@@ -96,6 +96,10 @@ func cmdLogin(serverURL string, args []string) {
 	} else {
 		fmt.Println("вход выполнен, данные синхронизированы")
 	}
+
+	if err := RunTUI(a, buildVersion); err != nil {
+		fatal("TUI завершился с ошибкой: %v", err)
+	}
 }
 
 // cmdLogout обрабатывает команду logout: удаляет JWT-токен и соль из keyring.

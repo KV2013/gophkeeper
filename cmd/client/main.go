@@ -30,8 +30,8 @@ func main() {
 
 	args := root.Args()
 	if len(args) == 0 {
-		root.Usage()
-		os.Exit(2)
+		runTUI(*server)
+		return
 	}
 
 	switch args[0] {
@@ -107,6 +107,15 @@ func defaultServer() string {
 		return v
 	}
 	return "http://localhost:8080"
+}
+
+// runTUI запускает TUI-интерфейс.
+func runTUI(serverURL string) {
+	a := mustApp(serverURL)
+	defer a.close()
+	if err := RunTUI(a, buildVersion); err != nil {
+		fatal("TUI завершился с ошибкой: %v", err)
+	}
 }
 
 // fatal печатает ошибку в stderr и завершает процесс с кодом 1.

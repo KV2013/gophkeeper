@@ -122,17 +122,31 @@ func (r *Repository) GetObject(ctx context.Context, userID, id string) (*model.O
 	return &o, nil
 }
 
-// ListObjects возвращает все объекты пользователя.
-func (r *Repository) ListObjects(ctx context.Context, userID string) ([]*model.Object, error) {
+// ListObjects возвращает объекты пользователя страницей (limit, offset),
+// отсортированные по created_at по убыванию.
+func (r *Repository) ListObjects(ctx context.Context, userID string, limit, offset int) ([]*model.Object, error) {
 	objects := []*model.Object{}
 	err := r.db.SelectContext(ctx, &objects,
 		`SELECT id, user_id, name, type, salt, ciphertext, created_at, updated_at
-		 FROM objects WHERE user_id = $1 ORDER BY created_at`, userID,
+		 FROM objects WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		userID, limit, offset,
 	)
 	if err != nil {
 		return nil, err
 	}
 	return objects, nil
+}
+
+// CountObjects возвращает количество объектов пользователя.
+func (r *Repository) CountObjects(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := r.db.GetContext(ctx, &count,
+		`SELECT COUNT(*) FROM objects WHERE user_id = $1`, userID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // UpdateObject обновляет объект.

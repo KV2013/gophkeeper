@@ -20,6 +20,7 @@ func Init(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.Mux {
 	r.Use(chimiddleware.Recoverer)
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/version", h.Version)
 		r.Post("/register", h.Register)
 		r.Post("/login", h.Login)
 
@@ -31,6 +32,8 @@ func Init(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.Mux {
 			r.Get("/objects/{id}", h.GetObject)
 			r.Put("/objects/{id}", h.UpdateObject)
 			r.Delete("/objects/{id}", h.DeleteObject)
+
+			r.Get("/stats", h.Stats)
 
 			r.Put("/files/{id}", h.UploadFile)
 			r.Get("/files/{id}", h.DownloadFile)

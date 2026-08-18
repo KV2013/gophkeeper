@@ -73,6 +73,19 @@ func (s *Storage) Delete(ctx context.Context, key string) error {
 	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
 }
 
+// List возвращает количество и суммарный размер объектов с заданным префиксом.
+func (s *Storage) List(ctx context.Context, prefix string) (count int, size int64, err error) {
+	opts := minio.ListObjectsOptions{Prefix: prefix, Recursive: true}
+	for obj := range s.client.ListObjects(ctx, s.bucket, opts) {
+		if obj.Err != nil {
+			return 0, 0, obj.Err
+		}
+		count++
+		size += obj.Size
+	}
+	return count, size, nil
+}
+
 // ensureBucket создаёт бакет, если его ещё нет.
 func (s *Storage) ensureBucket(ctx context.Context) error {
 	ok, err := s.client.BucketExists(ctx, s.bucket)

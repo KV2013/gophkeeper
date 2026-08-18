@@ -19,8 +19,10 @@ type objectRepository interface {
 	CreateObject(ctx context.Context, obj *model.Object) error
 	// GetObject возвращает объект по идентификатору.
 	GetObject(ctx context.Context, userID, id string) (*model.Object, error)
-	// ListObjects возвращает все объекты пользователя.
-	ListObjects(ctx context.Context, userID string) ([]*model.Object, error)
+	// ListObjects возвращает объекты пользователя страницей (limit, offset).
+	ListObjects(ctx context.Context, userID string, limit, offset int) ([]*model.Object, error)
+	// CountObjects возвращает количество объектов пользователя.
+	CountObjects(ctx context.Context, userID string) (int, error)
 	// UpdateObject обновляет объект.
 	UpdateObject(ctx context.Context, obj *model.Object) error
 	// DeleteObject удаляет объект.
@@ -80,9 +82,23 @@ func (s *ObjectService) GetObject(ctx context.Context, userID, id string) (*mode
 	return obj, err
 }
 
-// ListObjects возвращает все объекты пользователя.
-func (s *ObjectService) ListObjects(ctx context.Context, userID string) ([]*model.Object, error) {
-	return s.repo.ListObjects(ctx, userID)
+// ListObjects возвращает страницу объектов пользователя и их общее количество.
+func (s *ObjectService) ListObjects(ctx context.Context, userID string, page, pageSize int) ([]*model.Object, int, error) {
+	total, err := s.repo.CountObjects(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * pageSize
+	objects, err := s.repo.ListObjects(ctx, userID, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	return objects, total, nil
+}
+
+// Count возвращает количество объектов пользователя.
+func (s *ObjectService) Count(ctx context.Context, userID string) (int, error) {
+	return s.repo.CountObjects(ctx, userID)
 }
 
 // UpdateObject обновляет содержимое объекта.

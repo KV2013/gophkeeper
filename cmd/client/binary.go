@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -148,6 +149,53 @@ func printBinaryInfo(obj *model.Object) {
 	fmt.Printf("размер: %d байт\n", meta.Size)
 	fmt.Printf("content-type: %s\n", meta.ContentType)
 	fmt.Printf("sha256: %s\n", meta.SHA256)
+}
+
+// addBinaryFileKey загружает бинарный файл, используя уже готовый ключ.
+// Не запрашивает ввод пользователя; возвращает ошибку при неудаче.
+func addBinaryFileKey(a *app, token string, salt []byte, key crypto.Key, name, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	sum, err := fileSHA256(f)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+
+	metaJSON, err := json.Marshal(binaryMeta{
+		Size:        stat.Size(),
+		ChunkSize:   crypto.FileChunkSize,
+		ContentType: detectContentType(path),
+		SHA256:      sum,
+	})
+	if err != nil {
+		return err
+	}
+
+	obj, err := a.sync.CreateObject(context.Background(), token, api.CreateObjectRequest{
+		Name:       name,
+		Type:       model.SecretTypeBinary,
+		Salt:       salt,
+		Ciphertext: metaJSON,
+	})
+	if err != nil {
+		return err
+	}
+
+	encSize := crypto.EncryptedFileSize(stat.Size(), crypto.FileChunkSize)
+	encReader := crypto.NewEncryptingReader(f, key, salt, stat.Size())
+	return a.api.UploadFile(context.Background(), token, obj.ID, encReader, encSize)
 }
 
 // getBinaryFile скачивает бинарный файл и сохраняет его расшифрованным на диск.

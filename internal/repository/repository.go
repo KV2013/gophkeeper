@@ -21,8 +21,11 @@ type Repository interface {
 	CreateObject(ctx context.Context, obj *model.Object) error
 	// GetObject возвращает объект по идентификатору.
 	GetObject(ctx context.Context, userID, id string) (*model.Object, error)
-	// ListObjects возвращает все объекты пользователя.
-	ListObjects(ctx context.Context, userID string) ([]*model.Object, error)
+	// ListObjects возвращает объекты пользователя страницей (limit, offset),
+	// отсортированные по created_at по убыванию.
+	ListObjects(ctx context.Context, userID string, limit, offset int) ([]*model.Object, error)
+	// CountObjects возвращает количество объектов пользователя.
+	CountObjects(ctx context.Context, userID string) (int, error)
 	// UpdateObject обновляет объект.
 	UpdateObject(ctx context.Context, obj *model.Object) error
 	// DeleteObject удаляет объект.

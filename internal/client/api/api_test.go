@@ -84,9 +84,13 @@ func TestClient(t *testing.T) {
 		},
 		"list objects возвращает список": {
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				writeJSON(w, http.StatusOK, []*model.Object{
-					{ID: "a", Name: "one"},
-					{ID: "b", Name: "two"},
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data": []*model.Object{
+						{ID: "a", Name: "one"},
+						{ID: "b", Name: "two"},
+					},
+					"metadata": map[string]any{"total": 2, "pages": 1, "page_size": 10, "page_number": 1},
+					"links":    map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
 				})
 			},
 			act: func(c *Client) error {

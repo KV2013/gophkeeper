@@ -32,9 +32,13 @@ func TestSyncer(t *testing.T) {
 	}{
 		"pull заменяет локальный кэш": {
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				writeJSON(w, http.StatusOK, []*model.Object{
-					{ID: "a", Name: "one", Type: model.SecretTypeText, Salt: []byte("0123456789abcdef"), Ciphertext: []byte("c1")},
-					{ID: "b", Name: "two", Type: model.SecretTypeCard, Salt: []byte("0123456789abcdef"), Ciphertext: []byte("c2")},
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data": []*model.Object{
+						{ID: "a", Name: "one", Type: model.SecretTypeText, Salt: []byte("0123456789abcdef"), Ciphertext: []byte("c1")},
+						{ID: "b", Name: "two", Type: model.SecretTypeCard, Salt: []byte("0123456789abcdef"), Ciphertext: []byte("c2")},
+					},
+					"metadata": map[string]any{"total": 2, "pages": 1, "page_size": 10, "page_number": 1},
+					"links":    map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
 				})
 			},
 			act: func(s *Syncer, store *repository.Repository) error {

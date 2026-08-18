@@ -53,14 +53,31 @@ func (m *mockRepo) GetObject(_ context.Context, userID, id string) (*model.Objec
 	return o, nil
 }
 
-func (m *mockRepo) ListObjects(_ context.Context, userID string) ([]*model.Object, error) {
+func (m *mockRepo) ListObjects(_ context.Context, userID string, limit, offset int) ([]*model.Object, error) {
 	result := []*model.Object{}
 	for _, o := range m.objects {
 		if o.UserID == userID {
 			result = append(result, o)
 		}
 	}
-	return result, nil
+	if offset >= len(result) {
+		return []*model.Object{}, nil
+	}
+	end := offset + limit
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[offset:end], nil
+}
+
+func (m *mockRepo) CountObjects(_ context.Context, userID string) (int, error) {
+	count := 0
+	for _, o := range m.objects {
+		if o.UserID == userID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (m *mockRepo) UpdateObject(_ context.Context, o *model.Object) error {

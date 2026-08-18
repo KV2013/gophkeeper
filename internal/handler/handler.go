@@ -13,17 +13,28 @@ import (
 	"github.com/victor/gophkeeper/internal/service"
 )
 
+// VersionInfo — информация о сборке сервера.
+type VersionInfo struct {
+	// Version — версия.
+	Version string
+	// BuildDate — дата сборки.
+	BuildDate string
+	// BuildCommit — коммит сборки.
+	BuildCommit string
+}
+
 // Handler — обработчик REST API.
 type Handler struct {
-	auth   *service.AuthService
-	object *service.ObjectService
-	file   *service.FileService
-	logger *zap.Logger
+	auth    *service.AuthService
+	object  *service.ObjectService
+	file    *service.FileService
+	version VersionInfo
+	logger  *zap.Logger
 }
 
 // New создаёт обработчик REST API.
-func New(auth *service.AuthService, object *service.ObjectService, file *service.FileService, logger *zap.Logger) *Handler {
-	return &Handler{auth: auth, object: object, file: file, logger: logger}
+func New(auth *service.AuthService, object *service.ObjectService, file *service.FileService, version VersionInfo, logger *zap.Logger) *Handler {
+	return &Handler{auth: auth, object: object, file: file, version: version, logger: logger}
 }
 
 // userID возвращает идентификатор пользователя из контекста запроса.
