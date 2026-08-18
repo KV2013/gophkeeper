@@ -34,8 +34,12 @@ HTTP на `:8080`, значения подключения — в самом с�
 Первый запуск — регистрация, далее вход. После входа открывается TUI.
 
 ```bash
-./bin/client-linux-amd64 register -u alice
-./bin/client-linux-amd64 login -u alice
+./bin/client-linux-amd64 register
+> логин: alice
+> пароль: 
+./bin/client-linux-amd64 login
+> логин: alice
+> пароль: 
 ```
 
 Логин передаётся флагом `-u`, пароль запрашивается интерактивно. Адрес
