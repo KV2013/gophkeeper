@@ -35,7 +35,7 @@ const (
 )
 
 // mainMenuItems — пункты главного меню.
-var mainMenuItems = []string{"Создать", "К списку", "Статистика", "Выход"}
+var mainMenuItems = []string{"Создать", "Статистика", "Выход"}
 
 // objectItem — элемент списка объектов.
 type objectItem struct {
@@ -117,10 +117,6 @@ type tuiModel struct {
 	metadata  []*model.Metadata
 	reveal    bool
 	plaintext string
-
-	// ключ
-	key    crypto.Key
-	hasKey bool
 
 	// главное меню
 	menuIndex int
@@ -462,22 +458,20 @@ func (m tuiModel) handleKeyMsg(msg keyMsg) (tea.Model, tea.Cmd) {
 		m.state = stateMain
 		return m, nil
 	}
-	m.key = msg.key
-	m.hasKey = true
 
 	switch m.passTarget {
 	case "form":
 		if m.formType == model.SecretTypeBinary {
-			return m, m.doBinaryUpload(m.pendingName, m.pendingPath, m.formSalt, m.key)
+			return m, m.doBinaryUpload(m.pendingName, m.pendingPath, m.formSalt, msg.key)
 		}
 		if m.state == stateEdit && m.editID != "" {
-			return m, m.doUpdateObject(m.editID, m.pendingName, m.formType, m.formSalt, m.key, m.pendingData)
+			return m, m.doUpdateObject(m.editID, m.pendingName, m.formType, m.formSalt, msg.key, m.pendingData)
 		}
-		return m, m.doCreateObject(m.pendingName, m.formType, m.formSalt, m.key, m.pendingData)
+		return m, m.doCreateObject(m.pendingName, m.formType, m.formSalt, msg.key, m.pendingData)
 	default: // detail
 		m.state = stateList
 		if m.selected != nil {
-			return m, tea.Batch(m.decryptObject(m.selected, m.key), m.fetchMetadata(m.selected.ID))
+			return m, tea.Batch(m.decryptObject(m.selected, msg.key), m.fetchMetadata(m.selected.ID))
 		}
 		return m, nil
 	}
@@ -600,6 +594,9 @@ func (m tuiModel) submitMasterPassword(password string) tea.Cmd {
 		if err != nil {
 			return keyMsg{err: err}
 		}
+		if err := m.app.saveMasterKey(key); err != nil {
+			return keyMsg{err: err}
+		}
 		return keyMsg{key: key}
 	}
 }
@@ -614,6 +611,12 @@ func (m tuiModel) handleMainKey(key string) (tea.Model, tea.Cmd) {
 	case "down":
 		if m.menuIndex < len(mainMenuItems)-1 {
 			m.menuIndex++
+		}
+		return m, nil
+	case "left":
+		m.state = stateList
+		if len(m.objects) == 0 {
+			return m, m.fetchObjects(1)
 		}
 		return m, nil
 	case "enter":
@@ -631,12 +634,6 @@ func (m tuiModel) selectMenu() (tea.Model, tea.Cmd) {
 		m.err = nil
 		m.startForm(model.SecretTypeText, false)
 		return m, nil
-	case "К списку":
-		m.state = stateList
-		if len(m.objects) == 0 {
-			return m, m.fetchObjects(1)
-		}
-		return m, nil
 	case "Статистика":
 		m.state = stateStats
 		m.err = nil
@@ -650,15 +647,24 @@ func (m tuiModel) selectMenu() (tea.Model, tea.Cmd) {
 func (m tuiModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := strings.ToLower(msg.String())
 	switch key {
-	case "esc":
+	case "esc", "right":
 		m.state = stateMain
 		return m, nil
 	case "r":
 		if m.selected != nil && m.selected.Type != model.SecretTypeBinary {
 			m.reveal = !m.reveal
-			if m.hasKey {
-				return m, m.decryptObject(m.selected, m.key)
+			key, ok, err := m.app.cachedMasterKey()
+			if err != nil {
+				m.err = err
+				return m, nil
 			}
+			if ok {
+				return m, m.decryptObject(m.selected, key)
+			}
+			m.passTarget = "detail"
+			m.state = statePassword
+			m.passInput.Reset()
+			m.passInput.Focus()
 		}
 		return m, nil
 	case "e":
@@ -719,8 +725,13 @@ func (m tuiModel) loadSelected() (tuiModel, tea.Cmd) {
 	if obj.Type == model.SecretTypeBinary {
 		return m, m.fetchMetadata(obj.ID)
 	}
-	if m.hasKey {
-		return m, tea.Batch(m.decryptObject(obj, m.key), m.fetchMetadata(obj.ID))
+	key, ok, err := m.app.cachedMasterKey()
+	if err != nil {
+		m.err = err
+		return m, nil
+	}
+	if ok {
+		return m, tea.Batch(m.decryptObject(obj, key), m.fetchMetadata(obj.ID))
 	}
 	m.passTarget = "detail"
 	m.state = statePassword
@@ -861,9 +872,7 @@ func (m tuiModel) requireKeyForForm() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if ok {
-		m.key = key
-		m.hasKey = true
-		return m.submitPending()
+		return m.submitPending(key)
 	}
 	m.passTarget = "form"
 	m.state = statePassword
@@ -872,14 +881,14 @@ func (m tuiModel) requireKeyForForm() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m tuiModel) submitPending() (tea.Model, tea.Cmd) {
+func (m tuiModel) submitPending(key crypto.Key) (tea.Model, tea.Cmd) {
 	if m.formType == model.SecretTypeBinary {
-		return m, m.doBinaryUpload(m.pendingName, m.pendingPath, m.formSalt, m.key)
+		return m, m.doBinaryUpload(m.pendingName, m.pendingPath, m.formSalt, key)
 	}
 	if m.state == stateEdit && m.editID != "" {
-		return m, m.doUpdateObject(m.editID, m.pendingName, m.formType, m.formSalt, m.key, m.pendingData)
+		return m, m.doUpdateObject(m.editID, m.pendingName, m.formType, m.formSalt, key, m.pendingData)
 	}
-	return m, m.doCreateObject(m.pendingName, m.formType, m.formSalt, m.key, m.pendingData)
+	return m, m.doCreateObject(m.pendingName, m.formType, m.formSalt, key, m.pendingData)
 }
 
 // ---- View ----
@@ -1027,11 +1036,11 @@ func (m tuiModel) viewObjectDetail() string {
 func (m tuiModel) viewHint() string {
 	switch m.state {
 	case stateMain:
-		return "↑/↓ — навигация   Enter — выбрать   Q — выход"
+		return "↑/↓ — навигация   Enter — выбрать   ← — к списку   Q — выход"
 	case stateStats:
 		return "H — на главную   L — к списку объектов"
 	case stateList:
-		hint := "↑/↓ — список   R — показать скрытое   E — редактировать   Delete — удалить"
+		hint := "↑/↓ — список   ←/→ — фокус   R — показать скрытое   E — редактировать   Delete — удалить"
 		if m.selected != nil && m.selected.Type == model.SecretTypeBinary {
 			hint += "   D — скачать файл"
 		}

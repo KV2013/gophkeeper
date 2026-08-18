@@ -187,10 +187,7 @@ func (a *app) saveAuth(token string, salt []byte, masterPassword string) error {
 	if err != nil {
 		return err
 	}
-	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
-		return err
-	}
-	if err := a.keyring.Set(clientkeyring.KeyMasterKeyCreatedAt, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+	if err := a.saveMasterKey(key); err != nil {
 		return err
 	}
 
@@ -234,13 +231,18 @@ func (a *app) masterKey() (crypto.Key, error) {
 	if err != nil {
 		return crypto.Key{}, err
 	}
-	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
-		return crypto.Key{}, err
-	}
-	if err := a.keyring.Set(clientkeyring.KeyMasterKeyCreatedAt, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
+	if err := a.saveMasterKey(key); err != nil {
 		return crypto.Key{}, err
 	}
 	return key, nil
+}
+
+// saveMasterKey сохраняет производный ключ и метку времени в keyring.
+func (a *app) saveMasterKey(key crypto.Key) error {
+	if err := a.keyring.Set(clientkeyring.KeyMasterKey, hex.EncodeToString(key[:])); err != nil {
+		return err
+	}
+	return a.keyring.Set(clientkeyring.KeyMasterKeyCreatedAt, strconv.FormatInt(time.Now().Unix(), 10))
 }
 
 // cachedMasterKey возвращает свежий ключ из keyring; (nil, false), если его нет
