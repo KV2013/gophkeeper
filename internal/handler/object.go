@@ -1,0 +1,175 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
+
+	"github.com/victor/gophkeeper/internal/model"
+	"github.com/victor/gophkeeper/internal/service"
+)
+
+// createObjectRequest — запрос на создание/обновление объекта.
+type createObjectRequest struct {
+	// Name — человекочитаемое имя объекта.
+	Name string `json:"name"`
+	// Type — тип объекта.
+	Type model.SecretType `json:"type"`
+	// Salt — соль KDF (base64).
+	Salt []byte `json:"salt"`
+	// Ciphertext — зашифрованные данные (base64).
+	Ciphertext []byte `json:"ciphertext"`
+}
+
+// metadataRequest — запрос на создание/обновление метаданных.
+type metadataRequest struct {
+	// Name — имя метаданных.
+	Name string `json:"name"`
+	// OrderNumber — порядковый номер для сортировки.
+	OrderNumber int `json:"order_number"`
+	// Options — произвольные пары ключ/значение.
+	Options map[string]string `json:"options"`
+}
+
+// CreateObject обрабатывает POST /api/v1/object.
+func (h *Handler) CreateObject(w http.ResponseWriter, r *http.Request) {
+	var req createObjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, service.ErrBadRequest)
+		return
+	}
+
+	obj, err := h.object.CreateObject(r.Context(), userID(r.Context()), req.Name, req.Type, req.Salt, req.Ciphertext)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, obj)
+}
+
+// ListObjects обрабатывает GET /api/v1/objects (пагинация в стиле JSON-API).
+func (h *Handler) ListObjects(w http.ResponseWriter, r *http.Request) {
+	page, size := pageParams(r)
+	objects, total, err := h.object.ListObjects(r.Context(), userID(r.Context()), page, size)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	resp := objectsPageResponse{
+		Data: objects,
+		Metadata: pageMetadata{
+			Total:      total,
+			Pages:      pagesCount(total, size),
+			PageSize:   size,
+			PageNumber: page,
+		},
+		Links: buildLinks(r, page, size, pagesCount(total, size)),
+	}
+	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// GetObject обрабатывает GET /api/v1/object/{id}.
+func (h *Handler) GetObject(w http.ResponseWriter, r *http.Request) {
+	obj, err := h.object.GetObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, obj)
+}
+
+// UpdateObject обрабатывает PUT /api/v1/object/{id}.
+func (h *Handler) UpdateObject(w http.ResponseWriter, r *http.Request) {
+	var req createObjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, service.ErrBadRequest)
+		return
+	}
+
+	obj, err := h.object.UpdateObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Name, req.Type, req.Salt, req.Ciphertext)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, obj)
+}
+
+// DeleteObject обрабатывает DELETE /api/v1/object/{id}.
+func (h *Handler) DeleteObject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	uid := userID(r.Context())
+
+	obj, err := h.object.GetObject(r.Context(), uid, id)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	if err := h.object.DeleteObject(r.Context(), uid, id); err != nil {
+		h.writeError(w, err)
+		return
+	}
+
+	if obj.Type == model.SecretTypeBinary {
+		if err := h.file.Delete(r.Context(), uid, id); err != nil {
+			h.logger.Warn("не удалось удалить файл из хранилища", zap.Error(err))
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// CreateMetadata обрабатывает POST /api/v1/object/{id}/metadata.
+func (h *Handler) CreateMetadata(w http.ResponseWriter, r *http.Request) {
+	var req metadataRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, service.ErrBadRequest)
+		return
+	}
+
+	m, err := h.object.CreateMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Name, req.OrderNumber, req.Options)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, m)
+}
+
+// ListMetadata обрабатывает GET /api/v1/object/{id}/metadata.
+func (h *Handler) ListMetadata(w http.ResponseWriter, r *http.Request) {
+	metadata, err := h.object.ListMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"))
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, metadata)
+}
+
+// UpdateMetadata обрабатывает PUT /api/v1/object/{id}/metadata/{metaID}.
+func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	var req metadataRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, service.ErrBadRequest)
+		return
+	}
+
+	m, err := h.object.UpdateMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), chi.URLParam(r, "metaID"), req.Name, req.OrderNumber, req.Options)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, m)
+}
+
+// DeleteMetadata обрабатывает DELETE /api/v1/object/{id}/metadata/{metaID}.
+func (h *Handler) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
+	err := h.object.DeleteMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), chi.URLParam(r, "metaID"))
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
