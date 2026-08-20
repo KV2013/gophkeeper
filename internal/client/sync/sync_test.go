@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -87,6 +88,32 @@ func TestSyncer(t *testing.T) {
 				}
 				if _, err := store.GetObject(context.Background(), "id-1"); err != nil {
 					return fmt.Errorf("объект должен быть записан в кэш: %v", err)
+				}
+				return nil
+			},
+		},
+		"pull с пустым ответом не уничтожает кэш": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data":     []*model.Object{},
+					"metadata": map[string]any{"total": 0, "pages": 0, "page_size": 10, "page_number": 1},
+					"links":    map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
+				})
+			},
+			act: func(s *Syncer, store *repository.Repository) error {
+				if err := store.UpsertObject(context.Background(), &model.Object{
+					ID: "keep", Name: "keep", Type: model.SecretTypeText,
+					Salt: []byte("0123456789abcdef"), Ciphertext: []byte("c"),
+				}); err != nil {
+					return err
+				}
+
+				err := s.Pull(context.Background(), "tok")
+				if !errors.Is(err, ErrEmptyPull) {
+					return fmt.Errorf("ожидалась ErrEmptyPull, got %v", err)
+				}
+				if _, err := store.GetObject(context.Background(), "keep"); err != nil {
+					return fmt.Errorf("объект должен остаться в кэше: %v", err)
 				}
 				return nil
 			},

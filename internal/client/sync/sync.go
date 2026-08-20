@@ -5,11 +5,16 @@ package sync
 
 import (
 	"context"
+	"errors"
 
 	"github.com/victor/gophkeeper/internal/client/api"
 	"github.com/victor/gophkeeper/internal/client/repository"
 	"github.com/victor/gophkeeper/internal/model"
 )
+
+// ErrEmptyPull — сервер вернул пустой список объектов. Локальный кэш при этом
+// не трогается, чтобы сетевой сбой/пустой ответ не уничтожил данные.
+var ErrEmptyPull = errors.New("sync: сервер вернул пустой список объектов")
 
 // Syncer — механизм синхронизации клиента.
 type Syncer struct {
@@ -23,10 +28,16 @@ func New(apiClient *api.Client, store *repository.Repository) *Syncer {
 }
 
 // Pull забирает все объекты пользователя с сервера и заменяет локальный кэш.
+//
+// Сетевые ошибки пробрасываются как есть; пустой ответ не приводит к очистке
+// кэша — возвращается ErrEmptyPull.
 func (s *Syncer) Pull(ctx context.Context, token string) error {
 	objects, err := s.api.ListObjects(ctx, token)
 	if err != nil {
 		return err
+	}
+	if len(objects) == 0 {
+		return ErrEmptyPull
 	}
 	return s.store.ReplaceAll(ctx, objects)
 }
