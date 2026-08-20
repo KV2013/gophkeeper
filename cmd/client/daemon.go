@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/flock"
 
+	clientconfig "github.com/victor/gophkeeper/internal/client/config"
 	clientdaemon "github.com/victor/gophkeeper/internal/client/daemon"
 	clientkeyring "github.com/victor/gophkeeper/internal/client/keyring"
 	clientpath "github.com/victor/gophkeeper/internal/client/path"
@@ -42,7 +43,12 @@ func cmdDaemon(serverURL string) {
 	}
 	defer store.Close()
 
-	ks := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"))
+	useFile, err := clientconfig.UseCredentialsFile(ctx(), store)
+	if err != nil {
+		fatal("не удалось прочитать конфигурацию: %v", err)
+	}
+
+	ks := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"), !useFile)
 
 	d := clientdaemon.New(ks, store, 0)
 

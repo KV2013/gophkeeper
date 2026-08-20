@@ -29,28 +29,30 @@ const (
 var ErrNotFound = errors.New("keyring: секрет не найден")
 
 // Store — хранилище секретов клиента.
+//
+// Работает строго в одном режиме: либо системный keyring (useOS=true), либо
+// файл-фолбэк credentials.json (useOS=false).
 type Store struct {
 	service string
 	file    string
 	useOS   bool
 }
 
-// New создаёт Store, использующий системный keyring с фолбэком на файл.
-func New(service, fallbackFile string) *Store {
-	return &Store{service: service, file: fallbackFile, useOS: true}
+// New создаёт Store. При useOS=true используется системный keyring, при
+// useOS=false — файл credentials.json.
+func New(service, file string, useOS bool) *Store {
+	return &Store{service: service, file: file, useOS: useOS}
 }
 
-// NewFile создаёт Store, использующий только файл.
-func NewFile(service, fallbackFile string) *Store {
-	return &Store{service: service, file: fallbackFile, useOS: false}
+// NewFile создаёт Store, использующий только файл (для headless/тестов).
+func NewFile(service, file string) *Store {
+	return &Store{service: service, file: file, useOS: false}
 }
 
 // Set сохраняет значение секрета под ключом.
 func (s *Store) Set(key, value string) error {
 	if s.useOS {
-		if err := gokeyring.Set(s.service, key, value); err == nil {
-			return nil
-		}
+		return gokeyring.Set(s.service, key, value)
 	}
 	return s.setFile(key, value)
 }
@@ -58,9 +60,7 @@ func (s *Store) Set(key, value string) error {
 // Get возвращает значение секрета по ключу.
 func (s *Store) Get(key string) (string, error) {
 	if s.useOS {
-		if v, err := gokeyring.Get(s.service, key); err == nil {
-			return v, nil
-		}
+		return gokeyring.Get(s.service, key)
 	}
 	return s.getFile(key)
 }
@@ -68,7 +68,7 @@ func (s *Store) Get(key string) (string, error) {
 // Delete удаляет значение секрета по ключу.
 func (s *Store) Delete(key string) error {
 	if s.useOS {
-		_ = gokeyring.Delete(s.service, key)
+		return gokeyring.Delete(s.service, key)
 	}
 	return s.deleteFile(key)
 }

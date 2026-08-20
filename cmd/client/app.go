@@ -48,7 +48,13 @@ func newApp(serverURL string) (*app, error) {
 		return nil, err
 	}
 
-	kr := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"))
+	useFile, err := clientconfig.UseCredentialsFile(ctx(), store)
+	if err != nil {
+		store.Close()
+		return nil, err
+	}
+
+	kr := clientkeyring.New(keyringService, filepath.Join(dataDir, "credentials.json"), !useFile)
 
 	resolvedServer, resolvedInsecure, resolvedCACert := resolveConnection(store, serverURL)
 

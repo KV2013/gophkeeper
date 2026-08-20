@@ -82,8 +82,8 @@ func (d *Daemon) cleanupKey(ctx context.Context) error {
 	}
 
 	if config.IsExpired(time.Unix(createdUnix, 0), time.Now(), ttl) {
-		_ = d.keyring.Delete(keyring.KeyMasterKey)
-		_ = d.keyring.Delete(keyring.KeyMasterKeyCreatedAt)
+		d.delete(keyring.KeyMasterKey)
+		d.delete(keyring.KeyMasterKeyCreatedAt)
 	}
 	return nil
 }
@@ -109,7 +109,14 @@ func (d *Daemon) cleanupSession() error {
 		keyring.KeyMasterKeyCreatedAt,
 		keyring.KeyTokenExpiresAt,
 	} {
-		_ = d.keyring.Delete(k)
+		d.delete(k)
 	}
 	return nil
+}
+
+// delete удаляет ключ из keyring, логируя ошибку при неудаче.
+func (d *Daemon) delete(key string) {
+	if err := d.keyring.Delete(key); err != nil {
+		d.logger.Printf("не удалось удалить ключ %q из keyring: %v", key, err)
+	}
 }

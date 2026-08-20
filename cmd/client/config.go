@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	clientconfig "github.com/victor/gophkeeper/internal/client/config"
 	"github.com/victor/gophkeeper/internal/client/repository"
@@ -22,6 +23,10 @@ func cmdConfigSet(serverURL string, args []string) {
 	case clientconfig.KeyMasterKeyTTL:
 		if _, err := clientconfig.ParseTTL(value); err != nil {
 			fatal("%v", err)
+		}
+	case clientconfig.KeyUseCredentialsFile:
+		if _, err := strconv.ParseBool(value); err != nil {
+			fatal("неверное значение %s: %v", key, err)
 		}
 	}
 

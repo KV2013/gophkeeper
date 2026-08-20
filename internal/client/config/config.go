@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/victor/gophkeeper/internal/client/repository"
@@ -29,6 +30,9 @@ const (
 	KeyConnectInsecure = "connect_insecure"
 	// KeyConnectCACert — путь к CA-сертификату (PEM).
 	KeyConnectCACert = "connect_cacert"
+	// KeyUseCredentialsFile — хранить секреты в файле credentials.json
+	// вместо системного keyring ("true"/"false").
+	KeyUseCredentialsFile = "use_credentials_file"
 )
 
 // ErrInvalidTTL — переданное значение TTL некорректно.
@@ -69,6 +73,23 @@ func MasterKeyTTL(ctx context.Context, r Reader) (time.Duration, error) {
 		return 0, err
 	}
 	return ParseTTL(v)
+}
+
+// UseCredentialsFile возвращает true, если секреты нужно хранить в файле
+// credentials.json вместо системного keyring. По умолчанию — false.
+func UseCredentialsFile(ctx context.Context, r Reader) (bool, error) {
+	v, err := r.GetConfig(ctx, KeyUseCredentialsFile)
+	if errors.Is(err, repository.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("config: неверное значение %s: %w", KeyUseCredentialsFile, err)
+	}
+	return b, nil
 }
 
 // IsExpired возвращает true, если createdAt «прожил» дольше ttl.
