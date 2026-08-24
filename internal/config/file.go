@@ -5,16 +5,17 @@ import (
 	"os"
 )
 
-func LoadConfigFile(cfg *Config) error {
-	cfgPath := os.Getenv("CONFIG")
-	if flagConfigPath != "" {
-		cfgPath = flagConfigPath
+// LoadConfigFile загружает конфигурацию из JSON-файла по пути configPath.
+// Если путь пуст, используется значение переменной окружения CONFIG.
+func LoadConfigFile(cfg *Config, configPath string) error {
+	if configPath == "" {
+		configPath = os.Getenv("CONFIG")
 	}
-	if cfgPath == "" {
+	if configPath == "" {
 		return nil
 	}
 
-	data, err := os.ReadFile(cfgPath)
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
 	}

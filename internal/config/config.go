@@ -1,5 +1,5 @@
 // Package config отвечает за загрузку и валидацию конфигурации сервера
-// из переменных окружения.
+// из переменных окружения, файла конфигурации и флагов командной строки.
 package config
 
 import (
@@ -35,10 +35,13 @@ type Config struct {
 	S3UseSSL bool `env:"S3_USE_SSL" json:"s3_use_ssl"`
 }
 
-// NewConfig собирает конфигурацию из переменных окружения и валидирует её.
+// NewConfig собирает конфигурацию и валидирует её.
+//
+// Приоритет значений: значения по умолчанию < файл конфигурации < переменные
+// окружения < флаги командной строки.
 func NewConfig() (*Config, error) {
-
-	parseFlags()
+	var flags Flags
+	parseFlags(&flags)
 
 	cfg := Config{
 		ServerAddress: "localhost:8080",
@@ -52,36 +55,42 @@ func NewConfig() (*Config, error) {
 		S3UseSSL:      false,
 	}
 
-	if err := LoadConfigFile(&cfg); err != nil {
+	if err := LoadConfigFile(&cfg, flags.ConfigPath); err != nil {
 		return nil, err
 	}
 
-	err := env.Parse(&cfg)
-	if err != nil {
+	if err := env.Parse(&cfg); err != nil {
 		return nil, err
 	}
-	if flagServerAddress != "" {
-		cfg.ServerAddress = flagServerAddress
-	}
-	if flagLogLevel != "" {
-		cfg.LogLevel = flagLogLevel
-	}
-	if flagDatabaseDSN != "" {
-		cfg.DatabaseDSN = flagDatabaseDSN
-	}
-	if flagJWTSecret != "" {
-		cfg.JWTSecret = flagJWTSecret
-	}
-	if flagTokenTTL != 0 {
-		cfg.TokenTTL = flagTokenTTL
-	}
-	if flagEnableHTTPS != false {
-		cfg.EnableHTTPS = flagEnableHTTPS
-	}
+
+	applyFlags(&cfg, &flags)
 
 	if cfg.JWTSecret == "" {
 		return nil, errors.New("config: переменная окружения JWT_SECRET не задана")
 	}
 
 	return &cfg, nil
+}
+
+// applyFlags применяет значения флагов поверх конфигурации. Применяются только
+// непустые значения, чтобы флаг не затирал значение из env/файла.
+func applyFlags(cfg *Config, flags *Flags) {
+	if flags.ServerAddress != "" {
+		cfg.ServerAddress = flags.ServerAddress
+	}
+	if flags.LogLevel != "" {
+		cfg.LogLevel = flags.LogLevel
+	}
+	if flags.DatabaseDSN != "" {
+		cfg.DatabaseDSN = flags.DatabaseDSN
+	}
+	if flags.JWTSecret != "" {
+		cfg.JWTSecret = flags.JWTSecret
+	}
+	if flags.TokenTTL != 0 {
+		cfg.TokenTTL = flags.TokenTTL
+	}
+	if flags.EnableHTTPS {
+		cfg.EnableHTTPS = flags.EnableHTTPS
+	}
 }
