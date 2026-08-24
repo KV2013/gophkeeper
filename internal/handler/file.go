@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	"github.com/victor/gophkeeper/internal/model"
@@ -17,7 +16,7 @@ const maxFileSize = 4 << 30
 
 // UploadFile обрабатывает PUT /api/v1/files/{id} — потоковая загрузка файла.
 func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := r.PathValue("id")
 	userID := userID(r.Context())
 
 	obj, err := h.object.GetObject(r.Context(), userID, id)
@@ -44,7 +43,7 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 
 // DownloadFile обрабатывает GET /api/v1/files/{id} — потоковое скачивание файла.
 func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := r.PathValue("id")
 	userID := userID(r.Context())
 
 	obj, err := h.object.GetObject(r.Context(), userID, id)

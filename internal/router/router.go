@@ -2,8 +2,8 @@
 package router
 
 import (
-	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"net/http"
+
 	"go.uber.org/zap"
 
 	"github.com/victor/gophkeeper/internal/config"
@@ -11,39 +11,40 @@ import (
 	"github.com/victor/gophkeeper/internal/middleware"
 )
 
-// Init создаёт роутер со всеми маршрутами и middleware.
-func Init(h *handler.Handler, logger *zap.Logger, cfg *config.Config) *chi.Mux {
-	r := chi.NewRouter()
-	r.Use(chimiddleware.RequestID)
-	r.Use(middleware.ZapLogger(logger))
-	r.Use(middleware.GzipCompression)
-	r.Use(chimiddleware.Recoverer)
+// Init создаёт HTTP-обработчик со всеми маршрутами и middleware.
+func Init(h *handler.Handler, logger *zap.Logger, cfg *config.Config) http.Handler {
+	mux := http.NewServeMux()
+	auth := middleware.AuthJWT(cfg.JWTSecret, logger)
 
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/version", h.Version)
-		r.Post("/register", h.Register)
-		r.Post("/login", h.Login)
+	// protected регистрирует маршрут, защищённый JWT-авторизацией.
+	protected := func(pattern string, hf http.HandlerFunc) {
+		mux.Handle(pattern, auth(hf))
+	}
 
-		r.Group(func(r chi.Router) {
-			r.Use(middleware.AuthJWT(cfg.JWTSecret, logger))
+	mux.HandleFunc("GET /api/v1/version", h.Version)
+	mux.HandleFunc("POST /api/v1/register", h.Register)
+	mux.HandleFunc("POST /api/v1/login", h.Login)
 
-			r.Post("/objects", h.CreateObject)
-			r.Get("/objects", h.ListObjects)
-			r.Get("/objects/{id}", h.GetObject)
-			r.Put("/objects/{id}", h.UpdateObject)
-			r.Delete("/objects/{id}", h.DeleteObject)
+	protected("POST /api/v1/objects", h.CreateObject)
+	protected("GET /api/v1/objects", h.ListObjects)
+	protected("GET /api/v1/objects/{id}", h.GetObject)
+	protected("PUT /api/v1/objects/{id}", h.UpdateObject)
+	protected("DELETE /api/v1/objects/{id}", h.DeleteObject)
 
-			r.Get("/stats", h.Stats)
+	protected("GET /api/v1/stats", h.Stats)
 
-			r.Put("/files/{id}", h.UploadFile)
-			r.Get("/files/{id}", h.DownloadFile)
+	protected("PUT /api/v1/files/{id}", h.UploadFile)
+	protected("GET /api/v1/files/{id}", h.DownloadFile)
 
-			r.Post("/objects/{id}/metadata", h.CreateMetadata)
-			r.Get("/objects/{id}/metadata", h.ListMetadata)
-			r.Put("/objects/{id}/metadata/{metaID}", h.UpdateMetadata)
-			r.Delete("/objects/{id}/metadata/{metaID}", h.DeleteMetadata)
-		})
-	})
+	protected("POST /api/v1/objects/{id}/metadata", h.CreateMetadata)
+	protected("GET /api/v1/objects/{id}/metadata", h.ListMetadata)
+	protected("PUT /api/v1/objects/{id}/metadata/{metaID}", h.UpdateMetadata)
+	protected("DELETE /api/v1/objects/{id}/metadata/{metaID}", h.DeleteMetadata)
 
-	return r
+	return middleware.Chain(
+		middleware.RequestID(),
+		middleware.ZapLogger(logger),
+		middleware.GzipCompression,
+		middleware.Recoverer(logger),
+	)(mux)
 }

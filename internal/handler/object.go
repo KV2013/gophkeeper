@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	"github.com/victor/gophkeeper/internal/model"
@@ -73,7 +72,7 @@ func (h *Handler) ListObjects(w http.ResponseWriter, r *http.Request) {
 
 // GetObject обрабатывает GET /api/v1/object/{id}.
 func (h *Handler) GetObject(w http.ResponseWriter, r *http.Request) {
-	obj, err := h.object.GetObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"))
+	obj, err := h.object.GetObject(r.Context(), userID(r.Context()), r.PathValue("id"))
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -89,7 +88,7 @@ func (h *Handler) UpdateObject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	obj, err := h.object.UpdateObject(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Name, req.Type, req.Salt, req.Ciphertext)
+	obj, err := h.object.UpdateObject(r.Context(), userID(r.Context()), r.PathValue("id"), req.Name, req.Type, req.Salt, req.Ciphertext)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -99,7 +98,7 @@ func (h *Handler) UpdateObject(w http.ResponseWriter, r *http.Request) {
 
 // DeleteObject обрабатывает DELETE /api/v1/object/{id}.
 func (h *Handler) DeleteObject(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := r.PathValue("id")
 	uid := userID(r.Context())
 
 	obj, err := h.object.GetObject(r.Context(), uid, id)
@@ -130,7 +129,7 @@ func (h *Handler) CreateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := h.object.CreateMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), req.Name, req.OrderNumber, req.Options)
+	m, err := h.object.CreateMetadata(r.Context(), userID(r.Context()), r.PathValue("id"), req.Name, req.OrderNumber, req.Options)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -140,7 +139,7 @@ func (h *Handler) CreateMetadata(w http.ResponseWriter, r *http.Request) {
 
 // ListMetadata обрабатывает GET /api/v1/object/{id}/metadata.
 func (h *Handler) ListMetadata(w http.ResponseWriter, r *http.Request) {
-	metadata, err := h.object.ListMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"))
+	metadata, err := h.object.ListMetadata(r.Context(), userID(r.Context()), r.PathValue("id"))
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -156,7 +155,7 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := h.object.UpdateMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), chi.URLParam(r, "metaID"), req.Name, req.OrderNumber, req.Options)
+	m, err := h.object.UpdateMetadata(r.Context(), userID(r.Context()), r.PathValue("id"), r.PathValue("metaID"), req.Name, req.OrderNumber, req.Options)
 	if err != nil {
 		h.writeError(w, err)
 		return
@@ -166,7 +165,7 @@ func (h *Handler) UpdateMetadata(w http.ResponseWriter, r *http.Request) {
 
 // DeleteMetadata обрабатывает DELETE /api/v1/object/{id}/metadata/{metaID}.
 func (h *Handler) DeleteMetadata(w http.ResponseWriter, r *http.Request) {
-	err := h.object.DeleteMetadata(r.Context(), userID(r.Context()), chi.URLParam(r, "id"), chi.URLParam(r, "metaID"))
+	err := h.object.DeleteMetadata(r.Context(), userID(r.Context()), r.PathValue("id"), r.PathValue("metaID"))
 	if err != nil {
 		h.writeError(w, err)
 		return
