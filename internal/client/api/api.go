@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/victor/gophkeeper/internal/model"
 )
 
@@ -131,21 +133,44 @@ func (c *Client) CreateObject(ctx context.Context, token string, req CreateObjec
 	return &obj, nil
 }
 
-// ListObjects возвращает все объекты пользователя.
-// Deprecated: используйте ListObjectsPage для пагинации.
+// ListObjects возвращает все объекты пользователя, загружая страницы параллельно.
 func (c *Client) ListObjects(ctx context.Context, token string) ([]*model.Object, error) {
-	objects := []*model.Object{}
-	page := 1
-	for {
-		resp, err := c.ListObjectsPage(ctx, token, page, 100)
-		if err != nil {
-			return nil, err
-		}
-		objects = append(objects, resp.Data...)
-		if page >= resp.Metadata.Pages || len(resp.Data) == 0 {
-			break
-		}
-		page++
+	const pageSize = 100
+	const concurrency = 3
+
+	first, err := c.ListObjectsPage(ctx, token, 1, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	if first.Metadata.Pages <= 1 {
+		return first.Data, nil
+	}
+
+	total := first.Metadata.Pages
+	results := make([][]*model.Object, total+1)
+	results[1] = first.Data
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(concurrency)
+
+	for page := 2; page <= total; page++ {
+		g.Go(func() error {
+			resp, err := c.ListObjectsPage(gctx, token, page, pageSize)
+			if err != nil {
+				return err
+			}
+			results[page] = resp.Data
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	objects := make([]*model.Object, 0)
+	for page := 1; page <= total; page++ {
+		objects = append(objects, results[page]...)
 	}
 	return objects, nil
 }

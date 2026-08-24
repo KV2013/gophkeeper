@@ -306,3 +306,93 @@ func selfSignedCert(t *testing.T) ([]byte, tls.Certificate) {
 	}
 	return certPEM, cert
 }
+
+func TestListObjectsParallel(t *testing.T) {
+	tests := map[string]struct {
+		handler http.HandlerFunc
+		act     func(c *Client) error
+	}{
+		"несколько страниц мержатся в правильном порядке": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				page, _ := strconv.Atoi(r.URL.Query().Get("page[number]"))
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data": []*model.Object{{ID: fmt.Sprintf("obj-%d", page), Name: fmt.Sprintf("obj-%d", page)}},
+					"metadata": map[string]any{
+						"total": 5, "pages": 5, "page_size": 1, "page_number": page,
+					},
+					"links": map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
+				})
+			},
+			act: func(c *Client) error {
+				objects, err := c.ListObjects(context.Background(), "tok")
+				if err != nil {
+					return err
+				}
+				if len(objects) != 5 {
+					return fmt.Errorf("got %d, want 5", len(objects))
+				}
+				for i, o := range objects {
+					if want := fmt.Sprintf("obj-%d", i+1); o.ID != want {
+						return fmt.Errorf("позиция %d: got %q, want %q", i, o.ID, want)
+					}
+				}
+				return nil
+			},
+		},
+		"одна страница": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data":     []*model.Object{{ID: "only", Name: "only"}},
+					"metadata": map[string]any{"total": 1, "pages": 1, "page_size": 100, "page_number": 1},
+					"links":    map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
+				})
+			},
+			act: func(c *Client) error {
+				objects, err := c.ListObjects(context.Background(), "tok")
+				if err != nil {
+					return err
+				}
+				if len(objects) != 1 || objects[0].ID != "only" {
+					return fmt.Errorf("got %v, want [only]", objects)
+				}
+				return nil
+			},
+		},
+		"ошибка на странице": {
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				page, _ := strconv.Atoi(r.URL.Query().Get("page[number]"))
+				if page == 3 {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "boom"})
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{
+					"data":     []*model.Object{{ID: fmt.Sprintf("obj-%d", page)}},
+					"metadata": map[string]any{"total": 5, "pages": 5, "page_size": 1, "page_number": page},
+					"links":    map[string]any{"first": "", "last": "", "prev": nil, "next": nil},
+				})
+			},
+			act: func(c *Client) error {
+				_, err := c.ListObjects(context.Background(), "tok")
+				if err == nil {
+					return fmt.Errorf("ожидалась ошибка")
+				}
+				return nil
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(tc.handler)
+			defer srv.Close()
+
+			client, err := New(srv.URL)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			if err := tc.act(client); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
