@@ -294,11 +294,14 @@ func (m tuiModel) fetchVersion() tea.Cmd {
 
 func (m tuiModel) doLogin(login, password string) tea.Cmd {
 	return func() tea.Msg {
+		pw := []byte(password)
+		defer clear(pw)
+
 		resp, err := m.app.api.Login(context.Background(), login, password)
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		if err := m.app.saveAuth(resp.Token, resp.Salt, password); err != nil {
+		if err := m.app.saveAuth(resp.Token, resp.Salt, pw); err != nil {
 			return actionMsg{err: err}
 		}
 		if err := m.app.sync.Pull(context.Background(), resp.Token); err != nil {
@@ -641,11 +644,14 @@ func (m tuiModel) handlePasswordKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m tuiModel) submitMasterPassword(password string) tea.Cmd {
 	return func() tea.Msg {
+		pw := []byte(password)
+		defer clear(pw)
+
 		salt, err := m.app.loadSalt()
 		if err != nil {
 			return keyMsg{err: err}
 		}
-		key, err := crypto.DeriveKey(password, salt)
+		key, err := crypto.DeriveKey(pw, salt)
 		if err != nil {
 			return keyMsg{err: err}
 		}

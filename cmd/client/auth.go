@@ -23,22 +23,23 @@ func cmdRegister(serverURL string, args []string) {
 		fatal("логин не может быть пустым")
 	}
 
-	password, err := promptSecret("пароль: ")
+	pw, err := promptSecretBytes("пароль: ")
 	if err != nil {
 		fatal("не удалось прочитать пароль: %v", err)
 	}
-	if password == "" {
+	defer clear(pw)
+	if len(pw) == 0 {
 		fatal("пароль не может быть пустым")
 	}
 
 	a := mustApp(serverURL)
 	defer a.close()
 
-	resp, err := a.api.Register(ctx(), l, password)
+	resp, err := a.api.Register(ctx(), l, string(pw))
 	if err != nil {
 		fatal("регистрация не удалась: %v", err)
 	}
-	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
+	if err := a.saveAuth(resp.Token, resp.Salt, pw); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
 	}
 	if err := a.saveConnectionConfig(); err != nil {
@@ -65,19 +66,20 @@ func cmdLogin(serverURL string, args []string) {
 		fatal("логин не может быть пустым")
 	}
 
-	password, err := promptSecret("пароль: ")
+	pw, err := promptSecretBytes("пароль: ")
 	if err != nil {
 		fatal("не удалось прочитать пароль: %v", err)
 	}
+	defer clear(pw)
 
 	a := mustApp(serverURL)
 	defer a.close()
 
-	resp, err := a.api.Login(ctx(), l, password)
+	resp, err := a.api.Login(ctx(), l, string(pw))
 	if err != nil {
 		fatal("вход не удался: %v", err)
 	}
-	if err := a.saveAuth(resp.Token, resp.Salt, password); err != nil {
+	if err := a.saveAuth(resp.Token, resp.Salt, pw); err != nil {
 		fatal("не удалось сохранить токен: %v", err)
 	}
 

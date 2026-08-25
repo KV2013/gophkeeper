@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -181,7 +182,7 @@ func (a *app) sessionExpired() bool {
 }
 
 // saveAuth сохраняет токен, соль, производный ключ и метки времени в keyring.
-func (a *app) saveAuth(token string, salt []byte, masterPassword string) error {
+func (a *app) saveAuth(token string, salt []byte, masterPassword []byte) error {
 	if err := a.keyring.Set(clientkeyring.KeyToken, token); err != nil {
 		return err
 	}
@@ -226,14 +227,15 @@ func (a *app) masterKey() (crypto.Key, error) {
 	if err != nil {
 		return crypto.Key{}, err
 	}
-	password, err := promptSecret("мастер-пароль: ")
+	pw, err := promptSecretBytes("мастер-пароль: ")
 	if err != nil {
 		return crypto.Key{}, err
 	}
-	if password == "" {
+	defer clear(pw)
+	if len(pw) == 0 {
 		return crypto.Key{}, errors.New("мастер-пароль не может быть пустым")
 	}
-	key, err := crypto.DeriveKey(password, salt)
+	key, err := crypto.DeriveKey(pw, salt)
 	if err != nil {
 		return crypto.Key{}, err
 	}
@@ -349,4 +351,15 @@ func promptSecret(p string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(b)), nil
+}
+
+// promptSecretBytes читает пароль из stdin без эха и возвращает []byte.
+func promptSecretBytes(p string) ([]byte, error) {
+	fmt.Fprint(os.Stdout, p)
+	b, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stdout)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.TrimSpace(b), nil
 }
