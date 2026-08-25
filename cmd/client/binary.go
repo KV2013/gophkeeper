@@ -153,7 +153,7 @@ func printBinaryInfo(obj *model.Object) {
 
 // addBinaryFileKey загружает бинарный файл, используя уже готовый ключ.
 // Не запрашивает ввод пользователя; возвращает ошибку при неудаче.
-func addBinaryFileKey(a *app, token string, salt []byte, key crypto.Key, name, path string) error {
+func addBinaryFileKey(a *app, ctx context.Context, token string, salt []byte, key crypto.Key, name, path string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -183,7 +183,7 @@ func addBinaryFileKey(a *app, token string, salt []byte, key crypto.Key, name, p
 		return err
 	}
 
-	obj, err := a.sync.CreateObject(context.Background(), token, api.CreateObjectRequest{
+	obj, err := a.sync.CreateObject(ctx, token, api.CreateObjectRequest{
 		Name:       name,
 		Type:       model.SecretTypeBinary,
 		Salt:       salt,
@@ -195,7 +195,7 @@ func addBinaryFileKey(a *app, token string, salt []byte, key crypto.Key, name, p
 
 	encSize := crypto.EncryptedFileSize(stat.Size(), crypto.FileChunkSize)
 	encReader := crypto.NewEncryptingReader(f, key, salt, stat.Size())
-	return a.api.UploadFile(context.Background(), token, obj.ID, encReader, encSize)
+	return a.api.UploadFile(ctx, token, obj.ID, encReader, encSize)
 }
 
 // getBinaryFile скачивает бинарный файл и сохраняет его расшифрованным на диск.

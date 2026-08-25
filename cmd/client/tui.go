@@ -117,6 +117,7 @@ type tuiModel struct {
 	app       *app
 	clientVer string
 	serverVer string
+	ctx       context.Context
 
 	state tuiState
 
@@ -178,12 +179,15 @@ type tuiModel struct {
 
 // RunTUI запускает TUI-интерфейс.
 func RunTUI(a *app, clientVersion string) error {
-	p := tea.NewProgram(newTUIModel(a, clientVersion), tea.WithAltScreen())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := tea.NewProgram(newTUIModel(a, clientVersion, ctx), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func newTUIModel(a *app, clientVersion string) tuiModel {
+func newTUIModel(a *app, clientVersion string, ctx context.Context) tuiModel {
 	login := textinput.New()
 	login.Placeholder = "логин"
 	login.Width = 40
@@ -218,6 +222,7 @@ func newTUIModel(a *app, clientVersion string) tuiModel {
 	return tuiModel{
 		app:          a,
 		clientVer:    clientVersion,
+		ctx:          ctx,
 		state:        state,
 		authLogin:    login,
 		authPassword: password,
@@ -246,7 +251,7 @@ func (m tuiModel) fetchObjects(page int) tea.Cmd {
 		if err != nil {
 			return objectsMsg{err: err}
 		}
-		resp, err := m.app.api.ListObjectsPage(context.Background(), token, page, 10)
+		resp, err := m.app.api.ListObjectsPage(m.ctx, token, page, 10)
 		if err != nil {
 			return objectsMsg{err: err}
 		}
@@ -260,7 +265,7 @@ func (m tuiModel) fetchMetadata(objectID string) tea.Cmd {
 		if err != nil {
 			return metadataMsg{err: err}
 		}
-		md, err := m.app.api.ListMetadata(context.Background(), token, objectID)
+		md, err := m.app.api.ListMetadata(m.ctx, token, objectID)
 		if err != nil {
 			return metadataMsg{err: err}
 		}
@@ -274,7 +279,7 @@ func (m tuiModel) fetchStats() tea.Cmd {
 		if err != nil {
 			return statsMsg{err: err}
 		}
-		s, err := m.app.api.Stats(context.Background(), token)
+		s, err := m.app.api.Stats(m.ctx, token)
 		if err != nil {
 			return statsMsg{err: err}
 		}
@@ -284,7 +289,7 @@ func (m tuiModel) fetchStats() tea.Cmd {
 
 func (m tuiModel) fetchVersion() tea.Cmd {
 	return func() tea.Msg {
-		v, err := m.app.api.ServerVersion(context.Background())
+		v, err := m.app.api.ServerVersion(m.ctx)
 		if err != nil {
 			return versionMsg{err: err}
 		}
@@ -297,14 +302,14 @@ func (m tuiModel) doLogin(login, password string) tea.Cmd {
 		pw := []byte(password)
 		defer clear(pw)
 
-		resp, err := m.app.api.Login(context.Background(), login, password)
+		resp, err := m.app.api.Login(m.ctx, login, password)
 		if err != nil {
 			return actionMsg{err: err}
 		}
 		if err := m.app.saveAuth(resp.Token, resp.Salt, pw); err != nil {
 			return actionMsg{err: err}
 		}
-		if err := m.app.sync.Pull(context.Background(), resp.Token); err != nil {
+		if err := m.app.sync.Pull(m.ctx, resp.Token); err != nil {
 			return actionMsg{message: "вход выполнен, синхронизация не удалась: " + err.Error()}
 		}
 		return actionMsg{message: "ok"}
@@ -335,7 +340,7 @@ func (m tuiModel) doCreateObject(name string, typ model.SecretType, salt []byte,
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		_, err = m.app.sync.CreateObject(context.Background(), token, api.CreateObjectRequest{
+		_, err = m.app.sync.CreateObject(m.ctx, token, api.CreateObjectRequest{
 			Name: name, Type: typ, Salt: salt, Ciphertext: cipher,
 		})
 		if err != nil {
@@ -355,7 +360,7 @@ func (m tuiModel) doUpdateObject(id, name string, typ model.SecretType, salt []b
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		_, err = m.app.sync.UpdateObject(context.Background(), token, id, api.CreateObjectRequest{
+		_, err = m.app.sync.UpdateObject(m.ctx, token, id, api.CreateObjectRequest{
 			Name: name, Type: typ, Salt: salt, Ciphertext: cipher,
 		})
 		if err != nil {
@@ -371,7 +376,7 @@ func (m tuiModel) doDeleteObject(id string) tea.Cmd {
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		if err := m.app.sync.DeleteObject(context.Background(), token, id); err != nil {
+		if err := m.app.sync.DeleteObject(m.ctx, token, id); err != nil {
 			return actionMsg{err: err}
 		}
 		return actionMsg{message: "объект удалён"}
@@ -384,7 +389,7 @@ func (m tuiModel) doBinaryUpload(name, path string, salt []byte, key crypto.Key)
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		if err := addBinaryFileKey(m.app, token, salt, key, name, path); err != nil {
+		if err := addBinaryFileKey(m.app, m.ctx, token, salt, key, name, path); err != nil {
 			return actionMsg{err: err}
 		}
 		return actionMsg{message: "файл загружен"}
@@ -400,7 +405,7 @@ func (m tuiModel) doDownload(path string) tea.Cmd {
 		if err != nil {
 			return actionMsg{err: err}
 		}
-		rc, _, err := m.app.api.DownloadFile(context.Background(), token, m.dlObj.ID)
+		rc, _, err := m.app.api.DownloadFile(m.ctx, token, m.dlObj.ID)
 		if err != nil {
 			return actionMsg{err: err}
 		}

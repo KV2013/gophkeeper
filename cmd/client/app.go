@@ -326,8 +326,12 @@ func tokenExpiresAt(token string) (int64, error) {
 	return int64(exp), nil
 }
 
-// ctx возвращает фоновый контекст для запросов.
+// ctx возвращает корневой контекст CLI-команд, отменяемый по сигналам
+// завершения. Если он не инициализирован (например, в тестах) — Background.
 func ctx() context.Context {
+	if rootCtx != nil {
+		return rootCtx
+	}
 	return context.Background()
 }
 

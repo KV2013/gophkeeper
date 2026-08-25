@@ -2,8 +2,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	flag "github.com/spf13/pflag"
 )
@@ -20,7 +23,16 @@ var (
 	insecure   bool
 )
 
+// Корневой контекст CLI-команд, отменяемый по сигналам завершения.
+var (
+	rootCtx    context.Context
+	rootCancel context.CancelFunc
+)
+
 func main() {
+	rootCtx, rootCancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+	defer rootCancel()
+
 	root := flag.NewFlagSet("gophkeeper", flag.ExitOnError)
 	root.Usage = usage
 	server := root.String("server", "", "адрес сервера (например https://localhost:8080)")
