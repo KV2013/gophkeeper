@@ -7,10 +7,10 @@ package model
 
 import "time"
 
-// SecretType описывает тип хранимого секрета.
+// SecretType описывает тип хранимого объекта.
 type SecretType string
 
-// Поддерживаемые типы секретов.
+// Поддерживаемые типы объектов.
 const (
 	// SecretTypeLoginPassword — пара логин/пароль.
 	SecretTypeLoginPassword SecretType = "login_password"
@@ -22,40 +22,72 @@ const (
 	SecretTypeCard SecretType = "card"
 )
 
-// Metadata описывает незашифрованные метаданные объекта, по которым сервер
-// выполняет поиск и отображение списка объектов без доступа к содержимому.
-type Metadata struct {
-	// Name — человекочитаемое название объекта.
-	Name string `json:"name"`
-	// Description — произвольное описание.
-	Description string `json:"description,omitempty"`
-	// Tags — произвольные теги для организации и поиска.
-	Tags []string `json:"tags,omitempty"`
+// Valid возвращает true, если тип входит в список поддерживаемых.
+func (t SecretType) Valid() bool {
+	switch t {
+	case SecretTypeLoginPassword, SecretTypeText, SecretTypeBinary, SecretTypeCard:
+		return true
+	default:
+		return false
+	}
 }
 
-// Secret — универсальная модель хранимого секрета.
+// User — пользователь системы.
+type User struct {
+	// ID — уникальный идентификатор пользователя.
+	ID string `json:"id" db:"id"`
+	// Login — уникальный логин.
+	Login string `json:"login" db:"login"`
+	// PasswordHash — bcrypt-хеш пароля (не сериализуется в JSON).
+	PasswordHash string `json:"-" db:"password_hash"`
+	// Salt — соль KDF, используемая клиентом для вывода мастер-ключа.
+	Salt []byte `json:"salt" db:"salt"`
+	// CreatedAt — время регистрации.
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// Object — зашифрованный объект данных пользователя.
 //
-// Поля Type и Metadata не шифруются и доступны серверу. Поле Ciphertext
-// содержит nonce || ciphertext, зашифрованный мастер-ключом клиента, и не
-// может быть прочитан сервером. Поле Salt хранит соль KDF пользователя,
-// необходимую клиенту для повторного вывода мастер-ключа.
-type Secret struct {
+// Поля Type не шифруется и доступно серверу. Поле Ciphertext содержит
+// nonce || ciphertext, зашифрованный мастер-ключом клиента, и не может быть
+// прочитано сервером. Поле Salt хранит соль KDF, необходимую клиенту для
+// повторного вывода мастер-ключа.
+type Object struct {
 	// ID — уникальный идентификатор объекта.
-	ID string `json:"id"`
+	ID string `json:"id" db:"id"`
 	// UserID — идентификатор владельца объекта.
-	UserID string `json:"user_id"`
-	// Type — тип хранимого секрета.
-	Type SecretType `json:"type"`
+	UserID string `json:"user_id" db:"user_id"`
+	// Name — человекочитаемое имя объекта (открытый текст для списка/поиска).
+	Name string `json:"name" db:"name"`
+	// Type — тип хранимого объекта.
+	Type SecretType `json:"type" db:"type"`
 	// Salt — соль KDF (размер crypto.SaltSize), общая для пользователя.
-	Salt []byte `json:"salt"`
+	Salt []byte `json:"salt" db:"salt"`
 	// Ciphertext — зашифрованные данные: nonce || ciphertext (base64 в JSON).
-	Ciphertext []byte `json:"ciphertext"`
-	// Metadata — незашифрованные метаданные объекта.
-	Metadata Metadata `json:"metadata"`
+	Ciphertext []byte `json:"ciphertext" db:"ciphertext"`
 	// CreatedAt — время создания объекта.
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	// UpdatedAt — время последнего изменения объекта.
-	UpdatedAt time.Time `json:"updated_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// Metadata — метаданные объекта.
+//
+// Метаданные не шифруются и доступны серверу: по ним выполняется поиск и
+// отображение списка объектов без доступа к их содержимому.
+type Metadata struct {
+	// ID — уникальный идентификатор записи метаданных.
+	ID string `json:"id" db:"id"`
+	// UserID — идентификатор владельца.
+	UserID string `json:"user_id" db:"user_id"`
+	// ObjectID — идентификатор объекта, к которому относятся метаданные.
+	ObjectID string `json:"object_id" db:"object_id"`
+	// Name — имя метаданных.
+	Name string `json:"name" db:"name"`
+	// OrderNumber — порядковый номер для сортировки.
+	OrderNumber int `json:"order_number" db:"order_number"`
+	// Options — произвольные пары ключ/значение.
+	Options map[string]string `json:"options"`
 }
 
 // LoginPasswordData — открытый текст пары логин/пароль на стороне клиента.

@@ -43,12 +43,12 @@ type Key [KeySize]byte
 
 // DeriveKey выводит мастер-ключ шифрования из пароля и соли с помощью
 // Argon2id. Соль должна иметь длину SaltSize.
-func DeriveKey(password string, salt []byte) (Key, error) {
+func DeriveKey(password []byte, salt []byte) (Key, error) {
 	var key Key
 	if len(salt) != SaltSize {
 		return key, errors.New("crypto: неверный размер соли")
 	}
-	dk := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, KeySize)
+	dk := argon2.IDKey(password, salt, argon2Time, argon2Memory, argon2Threads, KeySize)
 	copy(key[:], dk)
 	return key, nil
 }
